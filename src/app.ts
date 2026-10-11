@@ -11,7 +11,17 @@ export const app = express();
 
 app.use(
   cors({
-    origin: env.corsOrigins,
+    origin: (origin, callback) => {
+      // Izinkan request tanpa origin (seperti curl, mobile app native)
+      if (!origin) return callback(null, true);
+      if (
+        env.corsOrigins.includes(origin) ||
+        /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)
+      ) {
+        return callback(null, true);
+      }
+      return callback(null, false);
+    },
     credentials: true,
   }),
 );
