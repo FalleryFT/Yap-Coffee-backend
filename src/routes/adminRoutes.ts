@@ -2,11 +2,13 @@ import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { adminAuthController } from '../controllers/admin/adminAuthController.js';
 import { adminMenuController } from '../controllers/admin/adminMenuController.js';
+import { adminScheduleController } from '../controllers/admin/adminScheduleController.js';
 import { requireAdminAuth } from '../middlewares/auth.js';
 import { uploadMenuImage } from '../middlewares/uploadMenuImage.js';
 import { validateBody } from '../middlewares/validateBody.js';
 import { adminLoginSchema } from '../validators/authValidators.js';
 import { createMenuSchema, updateMenuSchema } from '../validators/menuValidators.js';
+import { createScheduleSchema, updateScheduleSchema } from '../validators/scheduleValidators.js';
 
 // Maksimal 10 percobaan login per 15 menit per IP, mencegah tebak-sandi brutal.
 const loginLimiter = rateLimit({
@@ -37,3 +39,20 @@ adminRoutes.get('/menu/:id', requireAdminAuth, adminMenuController.show);
 adminRoutes.post('/menu', requireAdminAuth, validateBody(createMenuSchema), adminMenuController.create);
 adminRoutes.put('/menu/:id', requireAdminAuth, validateBody(updateMenuSchema), adminMenuController.update);
 adminRoutes.delete('/menu/:id', requireAdminAuth, adminMenuController.remove);
+
+// Jadwal & sesi pre-order (halaman admin Pre-Order).
+adminRoutes.get('/pre-order/schedules', requireAdminAuth, adminScheduleController.list);
+adminRoutes.get('/pre-order/schedules/:id', requireAdminAuth, adminScheduleController.show);
+adminRoutes.post(
+  '/pre-order/schedules',
+  requireAdminAuth,
+  validateBody(createScheduleSchema),
+  adminScheduleController.create,
+);
+adminRoutes.put(
+  '/pre-order/schedules/:id',
+  requireAdminAuth,
+  validateBody(updateScheduleSchema),
+  adminScheduleController.update,
+);
+adminRoutes.delete('/pre-order/schedules/:id', requireAdminAuth, adminScheduleController.remove);
