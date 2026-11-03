@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import path from 'node:path';
 
 function required(name: string, fallback?: string): string {
   const value = process.env[name] ?? fallback;
@@ -29,6 +30,12 @@ export const env = {
     .split(',')
     .map((origin) => origin.trim())
     .filter(Boolean),
+
+  // Foto yang diunggah admin disimpan di disk dan disajikan lewat /uploads.
+  upload: {
+    dir: path.resolve(process.env.UPLOAD_DIR ?? 'uploads'),
+    maxImageBytes: 2 * 1024 * 1024,
+  },
 
   otp: {
     length: 4,

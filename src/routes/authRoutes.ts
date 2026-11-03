@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
-import { customerAuthController } from '../controllers/customerAuthController.js';
+import { customerAuthController } from '../controllers/customer/customerAuthController.js';
 import { validateBody } from '../middlewares/validateBody.js';
 import {
   customerLoginSchema,

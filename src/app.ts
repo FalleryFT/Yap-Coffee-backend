@@ -30,6 +30,15 @@ app.use(express.json());
 // Format ringkas di terminal, dan sengaja tidak mencatat body (berisi sandi/token).
 app.use(morgan('dev'));
 
+// Foto menu yang sudah diunggah, contoh: GET /uploads/menu/<nama-berkas>.jpg
+app.use(
+  '/uploads',
+  express.static(env.upload.dir, {
+    maxAge: '7d',
+    setHeaders: (res) => res.setHeader('X-Content-Type-Options', 'nosniff'),
+  }),
+);
+
 app.get('/health', (_req, res) => {
   res.json({ success: true, message: 'OK', data: { uptime: process.uptime() } });
 });

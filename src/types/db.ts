@@ -26,3 +26,26 @@ export interface OtpRow extends RowDataPacket {
   reset_token_expires_at: string | null;
   created_at: string;
 }
+
+export interface MenuCategoryRow extends RowDataPacket {
+  id: number;
+  name: string;
+}
+
+export interface MenuItemRow extends RowDataPacket {
+  id: number;
+  category_id: number;
+  category: string;
+  name: string;
+  description: string | null;
+  price: number;
+  stock: number;
+  image: string | null;
+}
+
+export interface MenuAddonRow extends RowDataPacket {
+  id: number;
+  menu_item_id: number;
+  label: string;
+  extra_price: number;
+}

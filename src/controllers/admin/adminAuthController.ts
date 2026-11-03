@@ -1,9 +1,9 @@
 import bcrypt from 'bcryptjs';
 import type { Request, Response } from 'express';
-import { adminRepository } from '../repositories/adminRepository.js';
-import { AppError } from '../utils/AppError.js';
-import { signToken } from '../utils/jwt.js';
-import { ok } from '../utils/response.js';
+import { adminRepository } from '../../repositories/adminRepository.js';
+import { AppError } from '../../utils/AppError.js';
+import { signToken } from '../../utils/jwt.js';
+import { ok } from '../../utils/response.js';
 
 function toPublicAdmin(row: { id: number; name: string; username: string; role: string }) {
   return { id: row.id, name: row.name, username: row.username, role: row.role };
