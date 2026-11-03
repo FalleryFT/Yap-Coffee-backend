@@ -1,12 +1,12 @@
 import bcrypt from 'bcryptjs';
 import type { Request, Response } from 'express';
-import { env } from '../config/env.js';
-import { customerRepository } from '../repositories/customerRepository.js';
-import { otpRepository } from '../repositories/otpRepository.js';
-import { AppError } from '../utils/AppError.js';
-import { signToken } from '../utils/jwt.js';
-import { generateOtpCode, generateResetToken } from '../utils/otp.js';
-import { ok, created } from '../utils/response.js';
+import { env } from '../../config/env.js';
+import { customerRepository } from '../../repositories/customerRepository.js';
+import { otpRepository } from '../../repositories/otpRepository.js';
+import { AppError } from '../../utils/AppError.js';
+import { signToken } from '../../utils/jwt.js';
+import { generateOtpCode, generateResetToken } from '../../utils/otp.js';
+import { ok, created } from '../../utils/response.js';
 
 const PASSWORD_HASH_ROUNDS = 10;
 
