@@ -2,12 +2,14 @@ import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { adminAuthController } from '../controllers/admin/adminAuthController.js';
 import { adminMenuController } from '../controllers/admin/adminMenuController.js';
+import { adminOrderController } from '../controllers/admin/adminOrderController.js';
 import { adminScheduleController } from '../controllers/admin/adminScheduleController.js';
 import { requireAdminAuth } from '../middlewares/auth.js';
 import { uploadMenuImage } from '../middlewares/uploadMenuImage.js';
 import { validateBody } from '../middlewares/validateBody.js';
 import { adminLoginSchema } from '../validators/authValidators.js';
 import { createMenuSchema, updateMenuSchema } from '../validators/menuValidators.js';
+import { cancelOrderSchema, updateOrderStatusSchema } from '../validators/orderValidators.js';
 import { createScheduleSchema, updateScheduleSchema } from '../validators/scheduleValidators.js';
 
 // Maksimal 10 percobaan login per 15 menit per IP, mencegah tebak-sandi brutal.
@@ -56,3 +58,20 @@ adminRoutes.put(
   adminScheduleController.update,
 );
 adminRoutes.delete('/pre-order/schedules/:id', requireAdminAuth, adminScheduleController.remove);
+
+// Pesanan (halaman admin Orders). Rute statis '/orders/stats' harus didaftarkan sebelum '/orders/:id'.
+adminRoutes.get('/orders', requireAdminAuth, adminOrderController.list);
+adminRoutes.get('/orders/stats', requireAdminAuth, adminOrderController.stats);
+adminRoutes.get('/orders/:id', requireAdminAuth, adminOrderController.show);
+adminRoutes.patch(
+  '/orders/:id/status',
+  requireAdminAuth,
+  validateBody(updateOrderStatusSchema),
+  adminOrderController.updateStatus,
+);
+adminRoutes.post(
+  '/orders/:id/cancel',
+  requireAdminAuth,
+  validateBody(cancelOrderSchema),
+  adminOrderController.cancel,
+);
