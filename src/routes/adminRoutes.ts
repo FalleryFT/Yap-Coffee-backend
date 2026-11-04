@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { adminAuthController } from '../controllers/admin/adminAuthController.js';
+import { adminDashboardController } from '../controllers/admin/adminDashboardController.js';
 import { adminHistoryController } from '../controllers/admin/adminHistoryController.js';
 import { adminMenuController } from '../controllers/admin/adminMenuController.js';
 import { adminOrderController } from '../controllers/admin/adminOrderController.js';
@@ -32,6 +33,9 @@ adminRoutes.post(
 );
 
 adminRoutes.get('/me', requireAdminAuth, adminAuthController.me);
+
+// Dashboard: ringkasan hari ini, pendapatan mingguan, menu terlaris, dan antrean pesanan.
+adminRoutes.get('/dashboard', requireAdminAuth, adminDashboardController.overview);
 
 // Kelola menu (semua rute di bawah wajib login admin). Rute statis '/menu/categories'
 // harus didaftarkan sebelum '/menu/:id' agar tidak dianggap sebagai id.

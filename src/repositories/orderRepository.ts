@@ -26,6 +26,8 @@ export interface OrderListFilter {
   statuses: OrderStatusDb[];
   /** Cocok dengan nama pelanggan atau kode pesanan. */
   search?: string;
+  /** Hanya pesanan yang masuk hari ini (tanggal server database). */
+  createdToday?: boolean;
   limit: number;
   offset: number;
 }
@@ -48,6 +50,10 @@ export const orderRepository = {
   async list(filter: OrderListFilter): Promise<{ rows: OrderRow[]; total: number }> {
     const conditions = ['o.status IN (?)', VISIBLE];
     const params: unknown[] = [filter.statuses, ACTIVE_STATUSES, FINISHED_VISIBLE_DAYS];
+
+    if (filter.createdToday) {
+      conditions.push('o.created_at >= CURDATE() AND o.created_at < CURDATE() + INTERVAL 1 DAY');
+    }
 
     if (filter.search) {
       conditions.push('(c.name LIKE ? OR o.code LIKE ?)');
