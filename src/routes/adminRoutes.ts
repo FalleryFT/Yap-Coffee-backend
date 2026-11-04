@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { adminAuthController } from '../controllers/admin/adminAuthController.js';
+import { adminHistoryController } from '../controllers/admin/adminHistoryController.js';
 import { adminMenuController } from '../controllers/admin/adminMenuController.js';
 import { adminOrderController } from '../controllers/admin/adminOrderController.js';
 import { adminScheduleController } from '../controllers/admin/adminScheduleController.js';
@@ -75,3 +76,10 @@ adminRoutes.post(
   validateBody(cancelOrderSchema),
   adminOrderController.cancel,
 );
+
+// Riwayat transaksi (halaman admin History). Rute statis harus didaftarkan sebelum '/history/:id/...'.
+adminRoutes.get('/history', requireAdminAuth, adminHistoryController.list);
+adminRoutes.get('/history/export', requireAdminAuth, adminHistoryController.export);
+adminRoutes.get('/history/stats', requireAdminAuth, adminHistoryController.stats);
+adminRoutes.get('/history/revenue', requireAdminAuth, adminHistoryController.revenue);
+adminRoutes.get('/history/:id/receipt', requireAdminAuth, adminHistoryController.receipt);
