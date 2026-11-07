@@ -61,6 +61,7 @@ CREATE TABLE IF NOT EXISTS menu_items (
   price        INT UNSIGNED NOT NULL,            -- rupiah, tanpa format
   stock        INT UNSIGNED NOT NULL DEFAULT 0,  -- sisa stok harian
   image        VARCHAR(255),
+  is_available TINYINT(1)   NOT NULL DEFAULT 1,  -- 0 = disembunyikan dari katalog pre-order pelanggan
   created_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX idx_menu_items_category (category_id),

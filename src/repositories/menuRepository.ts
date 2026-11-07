@@ -5,7 +5,7 @@ import type { CreateMenuInput, UpdateMenuInput } from '../validators/menuValidat
 
 const SELECT_ITEMS = `
   SELECT mi.id, mi.category_id, mc.name AS category, mi.name, mi.description,
-         mi.price, mi.stock, mi.image
+         mi.price, mi.stock, mi.image, mi.is_available
   FROM menu_items mi
   JOIN menu_categories mc ON mc.id = mi.category_id`;
 
@@ -17,6 +17,15 @@ export const menuRepository = {
       'SELECT id, name FROM menu_categories ORDER BY id',
     );
     return rows;
+  },
+
+  /** Menambah kategori; mengembalikan id baru. Nama yang sama (tanpa membedakan huruf besar/kecil) ditolak UNIQUE. */
+  async createCategory(name: string): Promise<number> {
+    const [result] = await pool.query<ResultSetHeader>(
+      'INSERT INTO menu_categories (name) VALUES (?)',
+      [name],
+    );
+    return result.insertId;
   },
 
   async findCategoryIdByName(name: string): Promise<number | null> {
@@ -52,9 +61,17 @@ export const menuRepository = {
     try {
       await conn.beginTransaction();
       const [result] = await conn.query<ResultSetHeader>(
-        `INSERT INTO menu_items (category_id, name, description, price, stock, image)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [categoryId, input.name, input.description, input.price, input.stock, input.image ?? null],
+        `INSERT INTO menu_items (category_id, name, description, price, stock, image, is_available)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [
+          categoryId,
+          input.name,
+          input.description,
+          input.price,
+          input.stock,
+          input.image ?? null,
+          input.available ? 1 : 0,
+        ],
       );
       await insertAddons(conn, result.insertId, input.addons);
       await conn.commit();
@@ -75,6 +92,7 @@ export const menuRepository = {
       price: input.price,
       stock: input.stock,
       image: input.image,
+      is_available: input.available === undefined ? undefined : input.available ? 1 : 0,
     };
     // Hanya kolom yang benar-benar dikirim (undefined dilewati; image boleh null untuk menghapus).
     const entries = Object.entries(columns).filter(([, value]) => value !== undefined);
