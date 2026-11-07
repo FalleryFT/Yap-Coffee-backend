@@ -10,7 +10,7 @@ import { requireAdminAuth } from '../middlewares/auth.js';
 import { uploadMenuImage } from '../middlewares/uploadMenuImage.js';
 import { validateBody } from '../middlewares/validateBody.js';
 import { adminLoginSchema } from '../validators/authValidators.js';
-import { createMenuSchema, updateMenuSchema } from '../validators/menuValidators.js';
+import { createCategorySchema, createMenuSchema, updateMenuSchema } from '../validators/menuValidators.js';
 import { cancelOrderSchema, updateOrderStatusSchema } from '../validators/orderValidators.js';
 import { createScheduleSchema, updateScheduleSchema } from '../validators/scheduleValidators.js';
 
@@ -41,6 +41,12 @@ adminRoutes.get('/dashboard', requireAdminAuth, adminDashboardController.overvie
 // harus didaftarkan sebelum '/menu/:id' agar tidak dianggap sebagai id.
 adminRoutes.get('/menu', requireAdminAuth, adminMenuController.list);
 adminRoutes.get('/menu/categories', requireAdminAuth, adminMenuController.categories);
+adminRoutes.post(
+  '/menu/categories',
+  requireAdminAuth,
+  validateBody(createCategorySchema),
+  adminMenuController.createCategory,
+);
 adminRoutes.post('/menu/image', requireAdminAuth, uploadMenuImage, adminMenuController.uploadImage);
 adminRoutes.get('/menu/:id', requireAdminAuth, adminMenuController.show);
 adminRoutes.post('/menu', requireAdminAuth, validateBody(createMenuSchema), adminMenuController.create);

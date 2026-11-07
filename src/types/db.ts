@@ -41,6 +41,8 @@ export interface MenuItemRow extends RowDataPacket {
   price: number;
   stock: number;
   image: string | null;
+  /** 1 = tampil di katalog pre-order pelanggan, 0 = disembunyikan (MySQL TINYINT). */
+  is_available: number;
 }
 
 export interface MenuAddonRow extends RowDataPacket {
@@ -93,4 +95,21 @@ export interface OrderItemRow extends RowDataPacket {
   size: string | null;
   sugar_level: string | null;
   notes: string | null;
+}
+
+// ---- Jadwal pre-order --------------------------------------------------
+
+export type ScheduleStatusDb = 'mendatang' | 'aktif' | 'selesai';
+
+export interface PickupScheduleRow extends RowDataPacket {
+  id: number;
+  name: string;
+  date: string; // 'YYYY-MM-DD' (pool memakai dateStrings: true)
+  location: string;
+  location_detail: string | null;
+  maps_url: string | null;
+  pickup_start: string; // 'HH:mm:ss'
+  pickup_end: string; // 'HH:mm:ss'
+  cut_off_time: string; // 'HH:mm:ss'
+  status: ScheduleStatusDb;
 }

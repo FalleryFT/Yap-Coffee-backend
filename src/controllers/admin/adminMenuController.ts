@@ -4,7 +4,7 @@ import type { MenuAddonRow, MenuItemRow } from '../../types/db.js';
 import { AppError } from '../../utils/AppError.js';
 import { created, ok } from '../../utils/response.js';
 import { looksLikeImage, removeMenuImage } from '../../utils/uploads.js';
-import type { CreateMenuInput, UpdateMenuInput } from '../../validators/menuValidators.js';
+import type { CreateCategoryInput, CreateMenuInput, UpdateMenuInput } from '../../validators/menuValidators.js';
 
 /** Bentuk satu menu untuk frontend (src/types/admin.ts → MenuItem), addons berupa objek. */
 function toMenuDto(row: MenuItemRow, addons: MenuAddonRow[]) {
@@ -16,6 +16,7 @@ function toMenuDto(row: MenuItemRow, addons: MenuAddonRow[]) {
     price: row.price,
     stock: row.stock,
     image: row.image ?? undefined,
+    available: row.is_available === 1,
     addons: addons
       .filter((a) => a.menu_item_id === row.id)
       .map((a) => ({ id: a.id, label: a.label, extra_price: a.extra_price })),
@@ -55,6 +56,27 @@ export const adminMenuController = {
   async categories(_req: Request, res: Response) {
     const rows = await menuRepository.listCategories();
     ok(res, 'OK', rows.map((r) => ({ id: r.id, name: r.name })));
+  },
+
+  /** POST /api/admin/menu/categories — kategori baru untuk filter dan form menu. */
+  async createCategory(req: Request, res: Response) {
+    const { name } = req.body as CreateCategoryInput;
+
+    // Kolom `name` memakai collation _ci, jadi "kopi susu" dan "Kopi Susu" dianggap sama.
+    if ((await menuRepository.findCategoryIdByName(name)) !== null) {
+      throw AppError.validation({ name: ['Kategori ini sudah ada.'] });
+    }
+
+    try {
+      const id = await menuRepository.createCategory(name);
+      created(res, 'Kategori berhasil ditambahkan.', { id, name });
+    } catch (err) {
+      // Dua permintaan serentak dengan nama sama: yang kedua kalah di indeks UNIQUE.
+      if ((err as { code?: string }).code === 'ER_DUP_ENTRY') {
+        throw AppError.validation({ name: ['Kategori ini sudah ada.'] });
+      }
+      throw err;
+    }
   },
 
   /** GET /api/admin/menu/:id */

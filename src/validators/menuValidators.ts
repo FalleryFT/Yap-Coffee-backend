@@ -38,6 +38,8 @@ const menuFields = {
     .nullable()
     .optional(),
   addons: z.array(addonSchema).max(20, 'Maksimal 20 tambahan per menu.').default([]),
+  // Tampil/tidaknya menu di katalog pre-order pelanggan.
+  available: z.boolean({ error: 'Status ketersediaan harus berupa true atau false.' }).default(true),
 };
 
 export const createMenuSchema = z.object(menuFields);
@@ -52,10 +54,24 @@ export const updateMenuSchema = z
     stock: menuFields.stock.optional(),
     image: menuFields.image,
     addons: z.array(addonSchema).max(20, 'Maksimal 20 tambahan per menu.').optional(),
+    available: menuFields.available.removeDefault().optional(),
   })
   .refine((data) => Object.keys(data).length > 0, {
     message: 'Tidak ada data yang diubah.',
   });
 
+/** 'semua' dipakai frontend sebagai chip filter "Semua", jadi tidak boleh jadi nama kategori. */
+export const createCategorySchema = z.object({
+  name: z
+    .string({ error: 'Nama kategori wajib diisi.' })
+    .trim()
+    .min(1, 'Nama kategori wajib diisi.')
+    .max(64, 'Nama kategori maksimal 64 karakter.')
+    .refine((value) => value.toLowerCase() !== 'semua', {
+      message: 'Nama \"Semua\" sudah dipakai untuk filter, gunakan nama lain.',
+    }),
+});
+
 export type CreateMenuInput = z.infer<typeof createMenuSchema>;
 export type UpdateMenuInput = z.infer<typeof updateMenuSchema>;
+export type CreateCategoryInput = z.infer<typeof createCategorySchema>;
