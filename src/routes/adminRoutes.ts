@@ -47,6 +47,7 @@ adminRoutes.post(
   validateBody(createCategorySchema),
   adminMenuController.createCategory,
 );
+adminRoutes.delete('/menu/categories/:id', requireAdminAuth, adminMenuController.removeCategory);
 adminRoutes.post('/menu/image', requireAdminAuth, uploadMenuImage, adminMenuController.uploadImage);
 adminRoutes.get('/menu/:id', requireAdminAuth, adminMenuController.show);
 adminRoutes.post('/menu', requireAdminAuth, validateBody(createMenuSchema), adminMenuController.create);

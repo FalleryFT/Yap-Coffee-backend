@@ -55,7 +55,9 @@ CREATE TABLE IF NOT EXISTS menu_categories (
 
 CREATE TABLE IF NOT EXISTS menu_items (
   id           INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  category_id  INT UNSIGNED NOT NULL,
+  -- NULL = menu tanpa kategori (hanya tampil di filter "Semua"). Diisi NULL otomatis
+  -- saat kategori dihapus, jadi menunya tidak ikut terhapus.
+  category_id  INT UNSIGNED NULL,
   name         VARCHAR(191) NOT NULL,
   description  TEXT,
   price        INT UNSIGNED NOT NULL,            -- rupiah, tanpa format
@@ -67,7 +69,7 @@ CREATE TABLE IF NOT EXISTS menu_items (
   INDEX idx_menu_items_category (category_id),
   CONSTRAINT fk_menu_items_category
     FOREIGN KEY (category_id) REFERENCES menu_categories (id)
-    ON DELETE RESTRICT ON UPDATE CASCADE
+    ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS menu_addons (
