@@ -34,8 +34,9 @@ export interface MenuCategoryRow extends RowDataPacket {
 
 export interface MenuItemRow extends RowDataPacket {
   id: number;
-  category_id: number;
-  category: string;
+  /** NULL = menu tanpa kategori (kategori asalnya sudah dihapus). */
+  category_id: number | null;
+  category: string | null;
   name: string;
   description: string | null;
   price: number;

@@ -7,7 +7,7 @@ const SELECT_ITEMS = `
   SELECT mi.id, mi.category_id, mc.name AS category, mi.name, mi.description,
          mi.price, mi.stock, mi.image, mi.is_available
   FROM menu_items mi
-  JOIN menu_categories mc ON mc.id = mi.category_id`;
+  LEFT JOIN menu_categories mc ON mc.id = mi.category_id`;
 
 type Addons = CreateMenuInput['addons'];
 
@@ -26,6 +26,68 @@ export const menuRepository = {
       [name],
     );
     return result.insertId;
+  },
+
+  async findCategoryById(id: number): Promise<MenuCategoryRow | null> {
+    const [rows] = await pool.query<MenuCategoryRow[]>(
+      'SELECT id, name FROM menu_categories WHERE id = ? LIMIT 1',
+      [id],
+    );
+    return rows[0] ?? null;
+  },
+
+  async categoryHasItems(id: number): Promise<boolean> {
+    const [rows] = await pool.query<MenuCategoryRow[]>(
+      'SELECT id FROM menu_items WHERE category_id = ? LIMIT 1',
+      [id],
+    );
+    return rows.length > 0;
+  },
+
+  /**
+   * Menghapus kategori. Dengan `moveTo`, menu di kategori itu dipindahkan dulu dalam satu
+   * transaksi: ke kategori lain, atau `'none'` agar menjadi tanpa kategori (tampil di "Semua").
+   * Tanpa `moveTo` menu tidak dipindah; pemanggil wajib memastikan kategorinya kosong.
+   */
+  async removeCategory(
+    id: number,
+    moveTo: number | 'none' | null = null,
+  ): Promise<boolean> {
+    if (moveTo === null) {
+      const [result] = await pool.query<ResultSetHeader>(
+        'DELETE FROM menu_categories WHERE id = ?',
+        [id],
+      );
+      return result.affectedRows > 0;
+    }
+
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+      if (moveTo === 'none') {
+        await conn.query('UPDATE menu_items SET category_id = NULL WHERE category_id = ?', [id]);
+      } else {
+        await conn.query('UPDATE menu_items SET category_id = ? WHERE category_id = ?', [
+          moveTo,
+          id,
+        ]);
+      }
+      const [result] = await conn.query<ResultSetHeader>(
+        'DELETE FROM menu_categories WHERE id = ?',
+        [id],
+      );
+      if (result.affectedRows === 0) {
+        await conn.rollback();
+        return false;
+      }
+      await conn.commit();
+      return true;
+    } catch (err) {
+      await conn.rollback();
+      throw err;
+    } finally {
+      conn.release();
+    }
   },
 
   async findCategoryIdByName(name: string): Promise<number | null> {

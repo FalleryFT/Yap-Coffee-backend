@@ -30,6 +30,12 @@ function parseId(req: Request): number {
   return id;
 }
 
+function parseCategoryId(req: Request): number {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) throw AppError.notFound('Kategori tidak ditemukan.');
+  return id;
+}
+
 async function resolveCategoryId(name: string): Promise<number> {
   const categoryId = await menuRepository.findCategoryIdByName(name);
   if (categoryId === null) {
@@ -77,6 +83,38 @@ export const adminMenuController = {
       }
       throw err;
     }
+  },
+
+  /**
+   * DELETE /api/admin/menu/categories/:id
+   * Tanpa `?moveTo` hanya kategori kosong yang boleh dihapus (selain itu 409 → popup konfirmasi).
+   * `?moveTo=<id kategori lain>` memindahkan menu ke kategori lain; `?moveTo=none` melepas menu
+   * dari kategori mana pun (tetap tampil di filter "Semua"). Menu tidak pernah ikut terhapus.
+   */
+  async removeCategory(req: Request, res: Response) {
+    const id = parseCategoryId(req);
+    const rawMoveTo = req.query.moveTo;
+    const toNone = rawMoveTo === 'none' || rawMoveTo === 'semua';
+    const moveTo = toNone || rawMoveTo === undefined ? null : Number(rawMoveTo);
+
+    if (!toNone && moveTo !== null) {
+      if (!Number.isInteger(moveTo) || moveTo <= 0 || moveTo === id) {
+        throw AppError.validation({ moveTo: ['Kategori tujuan tidak valid.'] });
+      }
+      if ((await menuRepository.findCategoryById(moveTo)) === null) {
+        throw AppError.validation({ moveTo: ['Kategori tujuan tidak dikenal.'] });
+      }
+    }
+
+    // Tanpa tujuan pindah, kategori hanya boleh dihapus kalau kosong; 409 ini yang memicu
+    // popup konfirmasi berisi pilihan tujuan di frontend.
+    if (moveTo === null && !toNone && (await menuRepository.categoryHasItems(id))) {
+      throw new AppError(409, 'Kategori masih dipakai menu.');
+    }
+
+    const deleted = await menuRepository.removeCategory(id, toNone ? 'none' : moveTo);
+    if (!deleted) throw AppError.notFound('Kategori tidak ditemukan.');
+    ok(res, 'Kategori berhasil dihapus.', null);
   },
 
   /** GET /api/admin/menu/:id */
