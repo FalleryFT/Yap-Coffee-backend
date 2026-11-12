@@ -34,11 +34,11 @@ ON DUPLICATE KEY UPDATE password_hash = VALUES(password_hash), name = VALUES(nam
 -- Menu
 -- ============================================================
 
-INSERT IGNORE INTO menu_categories (id, name) VALUES
-  (1, 'Kopi Susu'),
-  (2, 'Manual Brew'),
-  (3, 'Non-Coffee'),
-  (4, 'Makanan Ringan');
+INSERT IGNORE INTO menu_categories (id, name, has_options) VALUES
+  (1, 'Kopi Susu', 1),
+  (2, 'Manual Brew', 1),
+  (3, 'Non-Coffee', 1),
+  (4, 'Makanan Ringan', 0);
 
 INSERT IGNORE INTO menu_items (id, category_id, name, description, price, stock, image) VALUES
   (1, 1, 'Yap Latte',               'Signature palm sugar dengan susu gurih',                      22000, 40, 'yap_latte.png'),

@@ -1,10 +1,11 @@
 import type { ResultSetHeader } from 'mysql2';
 import { pool } from '../config/db.js';
 import type { PickupScheduleRow } from '../types/db.js';
+import { resolveCoordinates } from '../utils/mapsCoordinates.js';
 import type { CreateScheduleInput, UpdateScheduleInput } from '../validators/scheduleValidators.js';
 
 const SELECT_COLUMNS = `
-  SELECT id, name, date, location, location_detail, maps_url,
+  SELECT id, name, date, location, location_detail, maps_url, latitude, longitude,
          pickup_start, pickup_end, cut_off_time, status
   FROM pickup_schedules`;
 
@@ -17,6 +18,16 @@ export const scheduleRepository = {
     return rows;
   },
 
+  /** Jadwal yang masih menerima pesanan: aktif dan belum lewat batas pemesanan (jam database). */
+  async listOrderable(): Promise<PickupScheduleRow[]> {
+    const [rows] = await pool.query<PickupScheduleRow[]>(
+      `${SELECT_COLUMNS}
+       WHERE status = 'aktif' AND TIMESTAMP(date, cut_off_time) > NOW()
+       ORDER BY date, pickup_start, id`,
+    );
+    return rows;
+  },
+
   async findById(id: number): Promise<PickupScheduleRow | null> {
     const [rows] = await pool.query<PickupScheduleRow[]>(`${SELECT_COLUMNS} WHERE id = ? LIMIT 1`, [id]);
     return rows[0] ?? null;
@@ -24,16 +35,19 @@ export const scheduleRepository = {
 
   /** Jadwal baru langsung berstatus 'aktif' (tombol "Simpan & Buka Jadwal"). */
   async create(input: CreateScheduleInput): Promise<number> {
+    const point = resolveCoordinates(input);
     const [result] = await pool.query<ResultSetHeader>(
       `INSERT INTO pickup_schedules
-         (name, date, location, location_detail, maps_url, pickup_start, pickup_end, cut_off_time, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'aktif')`,
+         (name, date, location, location_detail, maps_url, latitude, longitude, pickup_start, pickup_end, cut_off_time, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'aktif')`,
       [
         input.name,
         input.date,
         input.location,
         input.locationDetail || null,
         input.mapsUrl,
+        point?.latitude ?? null,
+        point?.longitude ?? null,
         `${input.pickupStart}:00`,
         `${input.pickupEnd}:00`,
         `${input.cutOffTime}:00`,
@@ -49,6 +63,8 @@ export const scheduleRepository = {
       location: input.location,
       location_detail:
         input.locationDetail === undefined ? undefined : input.locationDetail || null,
+      latitude: input.latitude,
+      longitude: input.longitude,
     };
     const entries = Object.entries(columns).filter(([, value]) => value !== undefined);
     if (entries.length === 0) return;

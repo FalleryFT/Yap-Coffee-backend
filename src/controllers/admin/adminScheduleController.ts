@@ -2,6 +2,7 @@ import type { Request, Response } from 'express';
 import { scheduleRepository } from '../../repositories/scheduleRepository.js';
 import type { PickupScheduleRow } from '../../types/db.js';
 import { AppError } from '../../utils/AppError.js';
+import { coordinatesOf } from '../../utils/mapsCoordinates.js';
 import { created, ok } from '../../utils/response.js';
 import type { CreateScheduleInput, UpdateScheduleInput } from '../../validators/scheduleValidators.js';
 
@@ -28,6 +29,8 @@ function toScheduleDto(row: PickupScheduleRow) {
     location: row.location,
     locationDetail: row.location_detail ?? '',
     mapsUrl: row.maps_url ?? undefined,
+    // Titik di peta aplikasi pelanggan; tidak ada bila belum diisi.
+    ...coordinatesOf(row),
     pickupTime: `${hhmm(row.pickup_start)} - ${hhmm(row.pickup_end)} WIB`,
     cutOff: `${hhmm(row.cut_off_time)} WIB`,
     cutOffUrgent: isCutOffUrgent(row),

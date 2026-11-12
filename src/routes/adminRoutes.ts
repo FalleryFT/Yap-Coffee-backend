@@ -5,6 +5,8 @@ import { adminDashboardController } from '../controllers/admin/adminDashboardCon
 import { adminHistoryController } from '../controllers/admin/adminHistoryController.js';
 import { adminMenuController } from '../controllers/admin/adminMenuController.js';
 import { adminOrderController } from '../controllers/admin/adminOrderController.js';
+import { adminOptionsController } from '../controllers/admin/adminOptionsController.js';
+import { adminSettingsController } from '../controllers/admin/adminSettingsController.js';
 import { adminScheduleController } from '../controllers/admin/adminScheduleController.js';
 import { requireAdminAuth } from '../middlewares/auth.js';
 import { uploadMenuImage } from '../middlewares/uploadMenuImage.js';
@@ -13,6 +15,12 @@ import { adminLoginSchema } from '../validators/authValidators.js';
 import { createCategorySchema, createMenuSchema, updateMenuSchema } from '../validators/menuValidators.js';
 import { cancelOrderSchema, updateOrderStatusSchema } from '../validators/orderValidators.js';
 import { createScheduleSchema, updateScheduleSchema } from '../validators/scheduleValidators.js';
+import { updateOptionsSchema } from '../validators/optionsValidators.js';
+import {
+  changeAdminPasswordSchema,
+  updateAdminProfileSchema,
+  updateStoreSettingsSchema,
+} from '../validators/settingsValidators.js';
 
 // Maksimal 10 percobaan login per 15 menit per IP, mencegah tebak-sandi brutal.
 const loginLimiter = rateLimit({
@@ -33,6 +41,15 @@ adminRoutes.post(
 );
 
 adminRoutes.get('/me', requireAdminAuth, adminAuthController.me);
+adminRoutes.put('/me', requireAdminAuth, validateBody(updateAdminProfileSchema), adminAuthController.updateProfile);
+// Memakai pembatas yang sama dengan login: kata sandi saat ini diperiksa, jadi tidak boleh ditebak berulang.
+adminRoutes.post(
+  '/me/change-password',
+  loginLimiter,
+  requireAdminAuth,
+  validateBody(changeAdminPasswordSchema),
+  adminAuthController.changePassword,
+);
 
 // Dashboard: ringkasan hari ini, pendapatan mingguan, menu terlaris, dan antrean pesanan.
 adminRoutes.get('/dashboard', requireAdminAuth, adminDashboardController.overview);
@@ -93,3 +110,16 @@ adminRoutes.get('/history/export', requireAdminAuth, adminHistoryController.expo
 adminRoutes.get('/history/stats', requireAdminAuth, adminHistoryController.stats);
 adminRoutes.get('/history/revenue', requireAdminAuth, adminHistoryController.revenue);
 adminRoutes.get('/history/:id/receipt', requireAdminAuth, adminHistoryController.receipt);
+
+// Pengaturan toko: nomor WhatsApp dan Instagram yang tampil di aplikasi pelanggan.
+adminRoutes.get('/settings', requireAdminAuth, adminSettingsController.show);
+adminRoutes.put('/settings', requireAdminAuth, validateBody(updateStoreSettingsSchema), adminSettingsController.update);
+
+// Ukuran gelas dan tingkat manis yang bisa dipilih pelanggan.
+adminRoutes.get('/settings/options', requireAdminAuth, adminOptionsController.show);
+adminRoutes.put(
+  '/settings/options',
+  requireAdminAuth,
+  validateBody(updateOptionsSchema),
+  adminOptionsController.update,
+);

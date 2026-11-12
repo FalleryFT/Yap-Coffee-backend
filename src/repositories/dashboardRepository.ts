@@ -30,6 +30,7 @@ interface TopMenuRow extends RowDataPacket {
   description: string | null;
   image: string | null;
   category: string;
+  has_options: number;
   sold: string | number;
 }
 
@@ -59,6 +60,7 @@ export interface TopMenuRecord {
   description: string;
   image: string | null;
   category: string;
+  hasOptions: boolean;
   sold: number;
 }
 
@@ -124,14 +126,14 @@ export const dashboardRepository = {
   /** Menu paling banyak dipesan pekan ini (jumlah cup/porsi), di luar pesanan dibatalkan. */
   async topMenu(limit: number): Promise<TopMenuRecord[]> {
     const [rows] = await pool.query<TopMenuRow[]>(
-      `SELECT mi.id, mi.name, mi.description, mi.image, mc.name AS category, SUM(oi.qty) AS sold
+      `SELECT mi.id, mi.name, mi.description, mi.image, mc.name AS category, mc.has_options, SUM(oi.qty) AS sold
        FROM order_items oi
        JOIN orders o           ON o.id = oi.order_id
        JOIN menu_items mi      ON mi.id = oi.menu_item_id
        JOIN menu_categories mc ON mc.id = mi.category_id
        WHERE o.status <> 'dibatalkan'
          AND o.created_at >= ${WEEK_START} AND o.created_at < ${WEEK_START} + INTERVAL 7 DAY
-       GROUP BY mi.id, mi.name, mi.description, mi.image, mc.name
+       GROUP BY mi.id, mi.name, mi.description, mi.image, mc.name, mc.has_options
        ORDER BY sold DESC, mi.name ASC
        LIMIT ?`,
       [limit],
@@ -142,6 +144,7 @@ export const dashboardRepository = {
       description: r.description ?? '',
       image: r.image,
       category: r.category,
+      hasOptions: r.has_options === 1,
       sold: num(r.sold),
     }));
   },

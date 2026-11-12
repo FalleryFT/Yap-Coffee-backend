@@ -70,6 +70,8 @@ export const createCategorySchema = z.object({
     .refine((value) => value.toLowerCase() !== 'semua', {
       message: 'Nama \"Semua\" sudah dipakai untuk filter, gunakan nama lain.',
     }),
+  // Jenis kategori: true = minuman (pelanggan memilih ukuran dan tingkat manis), false = makanan.
+  hasOptions: z.boolean({ error: 'Jenis kategori harus minuman atau makanan.' }).default(true),
 });
 
 export type CreateMenuInput = z.infer<typeof createMenuSchema>;

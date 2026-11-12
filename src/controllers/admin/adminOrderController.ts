@@ -1,4 +1,5 @@
 import type { Request, Response } from 'express';
+import { notificationRepository } from '../../repositories/notificationRepository.js';
 import { orderRepository } from '../../repositories/orderRepository.js';
 import { AppError } from '../../utils/AppError.js';
 import { toOrderDto } from '../../utils/orderDto.js';
@@ -89,9 +90,20 @@ export const adminOrderController = {
       throw new AppError(409, 'Pesanan yang sudah dibatalkan tidak bisa diubah statusnya.');
     }
 
+    if (existing.status === 'selesai' && next !== 'selesai') {
+      throw new AppError(409, 'Pesanan yang sudah selesai tidak bisa dikembalikan ke status sebelumnya.');
+    }
+
     if (existing.status !== next) {
       const changed = await orderRepository.updateStatus(id, next);
       if (!changed) throw new AppError(409, 'Status pesanan baru saja berubah. Muat ulang lalu coba lagi.');
+
+      // Gagal membuat notifikasi tidak boleh menggagalkan perubahan status yang sudah tersimpan.
+      if (next === 'siap_ambil') {
+        await notificationRepository.createOrderReady(id).catch((err: unknown) => {
+          console.error('Gagal membuat notifikasi pesanan siap ambil:', err);
+        });
+      }
     }
     ok(res, 'Status pesanan berhasil diperbarui.', await loadOrder(id));
   },
