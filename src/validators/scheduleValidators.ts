@@ -46,6 +46,10 @@ const location = z
 
 const locationDetail = z.string().trim().max(255, 'Detail lokasi maksimal 255 karakter.');
 
+// Koordinat titik pengambilan untuk peta di aplikasi. Bila kosong, dicoba dibaca dari link Google Maps.
+const latitude = z.number({ error: 'Latitude harus berupa angka.' }).min(-90, 'Latitude -90 sampai 90.').max(90, 'Latitude -90 sampai 90.');
+const longitude = z.number({ error: 'Longitude harus berupa angka.' }).min(-180, 'Longitude -180 sampai 180.').max(180, 'Longitude -180 sampai 180.');
+
 /** Buat jadwal baru. Nama field mengikuti FormState di frontend (src/types/preOrder.ts). */
 export const createScheduleSchema = z
   .object({
@@ -54,6 +58,8 @@ export const createScheduleSchema = z
     location,
     locationDetail: locationDetail.default(''),
     mapsUrl,
+    latitude: latitude.optional(),
+    longitude: longitude.optional(),
     pickupStart: time('Jam mulai'),
     pickupEnd: time('Jam selesai'),
     cutOffTime: time('Batas pemesanan'),
@@ -64,6 +70,13 @@ export const createScheduleSchema = z
         code: 'custom',
         path: ['pickupEnd'],
         message: 'Jam selesai harus setelah jam mulai.',
+      });
+    }
+    if ((data.latitude === undefined) !== (data.longitude === undefined)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['latitude'],
+        message: 'Isi latitude dan longitude sekaligus.',
       });
     }
   });
@@ -77,9 +90,16 @@ export const updateScheduleSchema = z
     name: name.optional(),
     location: location.optional(),
     locationDetail: locationDetail.optional(),
+    // null = hapus titik di peta.
+    latitude: latitude.nullable().optional(),
+    longitude: longitude.nullable().optional(),
   })
   .refine((data) => Object.keys(data).length > 0, {
     message: 'Tidak ada data yang diubah.',
+  })
+  .refine((data) => (data.latitude === undefined) === (data.longitude === undefined), {
+    path: ['latitude'],
+    message: 'Isi latitude dan longitude sekaligus.',
   });
 
 export type CreateScheduleInput = z.infer<typeof createScheduleSchema>;

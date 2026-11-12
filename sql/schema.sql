@@ -23,6 +23,11 @@ CREATE TABLE IF NOT EXISTS customers (
   email         VARCHAR(191) NOT NULL UNIQUE,
   phone         VARCHAR(20)  NOT NULL,
   password_hash VARCHAR(255) NOT NULL,
+  password_updated_at DATETIME NULL,
+  -- Saklar Notifikasi di aplikasi. Bila 0, server tidak membuatkan notifikasi untuk pelanggan ini.
+  notifications_enabled TINYINT(1) NOT NULL DEFAULT 1,
+  -- Nama berkas foto profil di uploads/avatars; NULL = memakai foto bawaan aplikasi.
+  avatar        VARCHAR(64) NULL,
   created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -34,6 +39,7 @@ CREATE TABLE IF NOT EXISTS otp_codes (
   id                      INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   email                   VARCHAR(191) NOT NULL,
   code                    CHAR(4)      NOT NULL,
+  attempts                TINYINT UNSIGNED NOT NULL DEFAULT 0,  -- salah tebak; dibatasi env.otp.maxAttempts
   -- Diisi saat OTP terverifikasi; dipakai ulang sebagai bukti pada langkah ganti sandi.
   reset_token             VARCHAR(96),
   expires_at              DATETIME     NOT NULL,
@@ -50,7 +56,9 @@ CREATE TABLE IF NOT EXISTS otp_codes (
 
 CREATE TABLE IF NOT EXISTS menu_categories (
   id    INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  name  VARCHAR(64) NOT NULL UNIQUE
+  name  VARCHAR(64) NOT NULL UNIQUE,
+  -- Jenis kategori: 1 = minuman (pelanggan memilih ukuran dan tingkat manis), 0 = makanan (tanpa pilihan).
+  has_options TINYINT(1) NOT NULL DEFAULT 1
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS menu_items (
@@ -94,6 +102,8 @@ CREATE TABLE IF NOT EXISTS pickup_schedules (
   location         VARCHAR(191) NOT NULL,
   location_detail  VARCHAR(255),
   maps_url         VARCHAR(500),
+  latitude         DECIMAL(10,7) NULL,            -- titik di peta aplikasi pelanggan
+  longitude        DECIMAL(10,7) NULL,
   pickup_start     TIME         NOT NULL,
   pickup_end       TIME         NOT NULL,
   cut_off_time     TIME         NOT NULL,
@@ -168,3 +178,62 @@ CREATE TABLE IF NOT EXISTS payments (
     FOREIGN KEY (order_id) REFERENCES orders (id)
     ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Pengaturan toko yang bisa diganti admin kapan saja tanpa deploy ulang (halaman Pengaturan di web admin).
+CREATE TABLE IF NOT EXISTS store_settings (
+  setting_key   VARCHAR(64)  NOT NULL PRIMARY KEY,
+  setting_value VARCHAR(500) NOT NULL,
+  updated_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Nilai awal; INSERT IGNORE supaya nilai yang sudah diganti admin tidak tertimpa saat skema dijalankan ulang.
+INSERT IGNORE INTO store_settings (setting_key, setting_value) VALUES
+  ('whatsapp',  '081234567890'),
+  ('instagram', 'https://www.instagram.com/yap_coffee_/');
+
+-- Notifikasi dalam aplikasi untuk pelanggan: pesanan siap diambil dan menu baru.
+-- `ref` = kode pesanan (order_ready) atau id menu (new_menu), dipakai aplikasi untuk membuka halaman terkait.
+CREATE TABLE IF NOT EXISTS notifications (
+  id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  customer_id INT UNSIGNED NOT NULL,
+  type        ENUM('order_ready','new_menu') NOT NULL,
+  title       VARCHAR(191) NOT NULL,
+  body        VARCHAR(500) NOT NULL,
+  ref         VARCHAR(64),
+  read_at     DATETIME NULL,
+  created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_notifications_customer (customer_id, id),
+  CONSTRAINT fk_notifications_customer
+    FOREIGN KEY (customer_id) REFERENCES customers (id)
+    ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Pilihan ukuran gelas dan tingkat manis yang tampil di aplikasi pelanggan. Diatur admin di web (Pengaturan).
+-- Pesanan menyimpan namanya sebagai teks, jadi mengubah atau menghapus pilihan tidak merusak pesanan lama.
+CREATE TABLE IF NOT EXISTS menu_sizes (
+  id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  label       VARCHAR(32) NOT NULL UNIQUE,
+  detail      VARCHAR(64) NOT NULL DEFAULT '',        -- contoh: '16 oz'
+  extra_price INT UNSIGNED NOT NULL DEFAULT 0,        -- tambahan harga per gelas
+  is_default  TINYINT(1) NOT NULL DEFAULT 0,
+  sort_order  INT UNSIGNED NOT NULL DEFAULT 0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS sugar_levels (
+  id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  label       VARCHAR(32) NOT NULL UNIQUE,
+  is_default  TINYINT(1) NOT NULL DEFAULT 0,
+  sort_order  INT UNSIGNED NOT NULL DEFAULT 0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT IGNORE INTO menu_sizes (label, detail, extra_price, is_default, sort_order) VALUES
+  ('Reguler', '16 oz', 0, 1, 1),
+  ('Large',   '22 oz', 5000, 0, 2);
+
+INSERT IGNORE INTO sugar_levels (label, is_default, sort_order) VALUES
+  ('Normal', 0, 1),
+  ('Less Sugar', 1, 2),
+  ('No Sugar', 0, 3);
+
+INSERT IGNORE INTO store_settings (setting_key, setting_value) VALUES
+  ('outlet_name', 'Yap Coffee');

@@ -42,5 +42,27 @@ export const env = {
     codeTtlMinutes: 5, // umur kode OTP
     resetTokenTtlMinutes: 15, // umur reset_token setelah OTP terverifikasi
     resendCooldownSeconds: 60, // jeda minimum sebelum boleh minta OTP baru
+    maxAttempts: 5, // salah tebak yang diizinkan per OTP sebelum OTP itu hangus
+  },
+
+  // Info toko yang ditampilkan di aplikasi pelanggan (tombol Hubungi Penjual dan Instagram).
+  store: {
+    name: process.env.STORE_NAME ?? 'Yap Coffee',
+    // Hanya cadangan bila tabel store_settings kosong; nilai yang berlaku diatur admin di halaman Pengaturan.
+    whatsapp: process.env.STORE_WHATSAPP ?? '081231242277',
+    instagram: process.env.STORE_INSTAGRAM ?? 'https://www.instagram.com/yap_coffee_/',
+  },
+
+  // Aturan harga dan pembayaran pesanan; server yang menghitung, bukan klien.
+  order: {
+    taxRate: 0.11,
+    serviceFee: 2000,
+    paymentWindowMinutes: 10, // batas waktu bayar sebelum pesanan dibatalkan otomatis
+    // Ukuran, tingkat manis, dan jenis kategori (minuman/makanan) diatur admin di database.
+  },
+
+  payment: {
+    // Hanya untuk uji coba. Di produksi set PAYMENT_SIMULATED=false.
+    simulated: (process.env.PAYMENT_SIMULATED ?? 'true') === 'true',
   },
 } as const;

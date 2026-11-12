@@ -1,5 +1,6 @@
 import type { ResultSetHeader, RowDataPacket } from 'mysql2';
 import { pool } from '../config/db.js';
+import { releaseStock } from './orderStock.js';
 import type { OrderItemRow, OrderRow, OrderStatusDb } from '../types/db.js';
 import { ACTIVE_STATUSES, FINISHED_STATUSES, FINISHED_VISIBLE_DAYS } from '../utils/orderStatus.js';
 
@@ -144,12 +145,30 @@ export const orderRepository = {
     return result.affectedRows > 0;
   },
 
-  /** Batalkan hanya bila pesanan belum selesai/dibatalkan (cek dan ubah dalam satu query). */
+  /**
+   * Batalkan hanya bila pesanan belum selesai/dibatalkan (cek dan ubah dalam satu query),
+   * lalu kembalikan stok menu dalam transaksi yang sama.
+   */
   async cancel(id: number): Promise<boolean> {
-    const [result] = await pool.query<ResultSetHeader>(
-      `UPDATE orders SET status = 'dibatalkan' WHERE id = ? AND status NOT IN ('selesai', 'dibatalkan')`,
-      [id],
-    );
-    return result.affectedRows > 0;
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+      const [result] = await conn.query<ResultSetHeader>(
+        `UPDATE orders SET status = 'dibatalkan' WHERE id = ? AND status NOT IN ('selesai', 'dibatalkan')`,
+        [id],
+      );
+      if (result.affectedRows === 0) {
+        await conn.rollback();
+        return false;
+      }
+      await releaseStock(conn, [id]);
+      await conn.commit();
+      return true;
+    } catch (err) {
+      await conn.rollback();
+      throw err;
+    } finally {
+      conn.release();
+    }
   },
 };

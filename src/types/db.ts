@@ -14,12 +14,21 @@ export interface CustomerRow extends RowDataPacket {
   email: string;
   phone: string;
   password_hash: string;
+  created_at: string;
+  password_updated_at: string | null;
+  /** 1 = pelanggan mau menerima notifikasi, 0 = dimatikan. */
+  notifications_enabled: number;
+  /** Nama berkas foto profil di uploads/avatars; null = foto bawaan aplikasi. */
+  avatar: string | null;
 }
 
 export interface OtpRow extends RowDataPacket {
   id: number;
   email: string;
   code: string;
+  attempts: number;
+  /** Umur baris dalam detik menurut jam database (lihat otpRepository.findLatest). */
+  age_seconds?: number;
   reset_token: string | null;
   expires_at: string;
   consumed_at: string | null;
@@ -30,6 +39,8 @@ export interface OtpRow extends RowDataPacket {
 export interface MenuCategoryRow extends RowDataPacket {
   id: number;
   name: string;
+  /** 1 = minuman (ukuran + tingkat manis), 0 = makanan (tanpa pilihan). */
+  has_options: number;
 }
 
 export interface MenuItemRow extends RowDataPacket {
@@ -44,6 +55,8 @@ export interface MenuItemRow extends RowDataPacket {
   image: string | null;
   /** 1 = tampil di katalog pre-order pelanggan, 0 = disembunyikan (MySQL TINYINT). */
   is_available: number;
+  /** Jenis kategori menu ini (lihat MenuCategoryRow.has_options). */
+  has_options: number;
 }
 
 export interface MenuAddonRow extends RowDataPacket {
@@ -109,6 +122,9 @@ export interface PickupScheduleRow extends RowDataPacket {
   location: string;
   location_detail: string | null;
   maps_url: string | null;
+  /** DECIMAL: mysql2 mengirimnya sebagai string. Lihat coordinatesOf(). */
+  latitude: string | null;
+  longitude: string | null;
   pickup_start: string; // 'HH:mm:ss'
   pickup_end: string; // 'HH:mm:ss'
   cut_off_time: string; // 'HH:mm:ss'

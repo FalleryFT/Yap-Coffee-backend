@@ -1,5 +1,7 @@
 import type { Request, Response } from 'express';
 import { historyRepository } from '../../repositories/historyRepository.js';
+import { storeSettingsRepository } from '../../repositories/storeSettingsRepository.js';
+import { toStoreContactDto } from '../../utils/storeContact.js';
 import type { OrderItemRow, OrderStatusDb } from '../../types/db.js';
 import type { HistoryOrderRow } from '../../types/db.history.js';
 import { AppError } from '../../utils/AppError.js';
@@ -102,13 +104,24 @@ function toHistoryRowDto(row: HistoryOrderRow, allItems: OrderItemRow[]) {
 }
 
 /** Bentuk struk untuk frontend (src/types/receipt.ts → ReceiptData), plus `tax`. */
-function toReceiptDto(row: HistoryOrderRow, items: OrderItemRow[]) {
+/** Data toko di struk: nama outlet dan WhatsApp mengikuti halaman Pengaturan. */
+async function receiptStore(): Promise<{ name: string; branch: string; address: string; whatsapp: string }> {
+  const settings = await storeSettingsRepository.get();
+  const contact = toStoreContactDto(settings);
+  return { ...STORE, name: settings.outletName, whatsapp: contact.whatsapp || STORE.whatsapp };
+}
+
+function toReceiptDto(
+  row: HistoryOrderRow,
+  items: OrderItemRow[],
+  store: { name: string; branch: string; address: string; whatsapp: string },
+) {
   const start = hhmm(row.pickup_start);
   const end = hhmm(row.pickup_end);
   const paid = row.pay_status === 'lunas';
 
   return {
-    store: STORE,
+    store,
     receiptNo: `STRUK-${row.created_at.slice(0, 10).replace(/-/g, '')}-${row.id}`,
     preOrderNo: `ORD-${row.id}`,
     transactionAt: row.created_at.replace(' ', 'T'), // '2024-10-24T09:15:00'
@@ -262,7 +275,7 @@ export const adminHistoryController = {
     if (row.status === 'dibatalkan') {
       throw new AppError(409, 'Pesanan yang dibatalkan tidak memiliki struk.');
     }
-    ok(res, 'OK', toReceiptDto(row, await historyRepository.listItems([id])));
+    ok(res, 'OK', toReceiptDto(row, await historyRepository.listItems([id]), await receiptStore()));
   },
 
   /**

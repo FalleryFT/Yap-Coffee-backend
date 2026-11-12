@@ -117,7 +117,7 @@ export const adminDashboardController = {
       image: row.image ?? undefined,
       sold: row.sold,
       share: totalSold === 0 ? '0.0%' : formatPercent((row.sold / totalSold) * 100),
-      unit: row.category === 'Makanan Ringan' ? 'porsi' : 'cup',
+      unit: row.hasOptions ? 'cup' : 'porsi',
     }));
     const topSold = topRows.reduce((sum, row) => sum + row.sold, 0);
 

@@ -1,5 +1,6 @@
 import type { Request, Response } from 'express';
 import { menuRepository } from '../../repositories/menuRepository.js';
+import { notificationRepository } from '../../repositories/notificationRepository.js';
 import type { MenuAddonRow, MenuItemRow } from '../../types/db.js';
 import { AppError } from '../../utils/AppError.js';
 import { created, ok } from '../../utils/response.js';
@@ -17,6 +18,8 @@ function toMenuDto(row: MenuItemRow, addons: MenuAddonRow[]) {
     stock: row.stock,
     image: row.image ?? undefined,
     available: row.is_available === 1,
+    // Minuman (true) mendapat pilihan ukuran dan tingkat manis; makanan (false) tidak.
+    hasOptions: row.has_options === 1,
     addons: addons
       .filter((a) => a.menu_item_id === row.id)
       .map((a) => ({ id: a.id, label: a.label, extra_price: a.extra_price })),
@@ -61,12 +64,12 @@ export const adminMenuController = {
   /** GET /api/admin/menu/categories */
   async categories(_req: Request, res: Response) {
     const rows = await menuRepository.listCategories();
-    ok(res, 'OK', rows.map((r) => ({ id: r.id, name: r.name })));
+    ok(res, 'OK', rows.map((r) => ({ id: r.id, name: r.name, hasOptions: r.has_options === 1 })));
   },
 
   /** POST /api/admin/menu/categories — kategori baru untuk filter dan form menu. */
   async createCategory(req: Request, res: Response) {
-    const { name } = req.body as CreateCategoryInput;
+    const { name, hasOptions } = req.body as CreateCategoryInput;
 
     // Kolom `name` memakai collation _ci, jadi "kopi susu" dan "Kopi Susu" dianggap sama.
     if ((await menuRepository.findCategoryIdByName(name)) !== null) {
@@ -74,8 +77,8 @@ export const adminMenuController = {
     }
 
     try {
-      const id = await menuRepository.createCategory(name);
-      created(res, 'Kategori berhasil ditambahkan.', { id, name });
+      const id = await menuRepository.createCategory(name, hasOptions);
+      created(res, 'Kategori berhasil ditambahkan.', { id, name, hasOptions });
     } catch (err) {
       // Dua permintaan serentak dengan nama sama: yang kedua kalah di indeks UNIQUE.
       if ((err as { code?: string }).code === 'ER_DUP_ENTRY') {
@@ -139,6 +142,13 @@ export const adminMenuController = {
     const input = req.body as CreateMenuInput;
     const categoryId = await resolveCategoryId(input.category);
     const id = await menuRepository.create(input, categoryId);
+
+    // Menu yang langsung tampil di katalog diumumkan ke pelanggan; menu tersembunyi tidak.
+    if (input.available) {
+      await notificationRepository.createNewMenu(id, input.name).catch((err: unknown) => {
+        console.error('Gagal membuat notifikasi menu baru:', err);
+      });
+    }
     created(res, 'Menu berhasil ditambahkan.', await loadMenu(id));
   },
 

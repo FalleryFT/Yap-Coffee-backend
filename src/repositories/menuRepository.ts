@@ -5,7 +5,7 @@ import type { CreateMenuInput, UpdateMenuInput } from '../validators/menuValidat
 
 const SELECT_ITEMS = `
   SELECT mi.id, mi.category_id, mc.name AS category, mi.name, mi.description,
-         mi.price, mi.stock, mi.image, mi.is_available
+         mi.price, mi.stock, mi.image, mi.is_available, mc.has_options
   FROM menu_items mi
   LEFT JOIN menu_categories mc ON mc.id = mi.category_id`;
 
@@ -14,16 +14,16 @@ type Addons = CreateMenuInput['addons'];
 export const menuRepository = {
   async listCategories(): Promise<MenuCategoryRow[]> {
     const [rows] = await pool.query<MenuCategoryRow[]>(
-      'SELECT id, name FROM menu_categories ORDER BY id',
+      'SELECT id, name, has_options FROM menu_categories ORDER BY id',
     );
     return rows;
   },
 
   /** Menambah kategori; mengembalikan id baru. Nama yang sama (tanpa membedakan huruf besar/kecil) ditolak UNIQUE. */
-  async createCategory(name: string): Promise<number> {
+  async createCategory(name: string, hasOptions: boolean): Promise<number> {
     const [result] = await pool.query<ResultSetHeader>(
-      'INSERT INTO menu_categories (name) VALUES (?)',
-      [name],
+      'INSERT INTO menu_categories (name, has_options) VALUES (?, ?)',
+      [name, hasOptions ? 1 : 0],
     );
     return result.insertId;
   },
@@ -100,6 +100,37 @@ export const menuRepository = {
 
   async listItems(): Promise<MenuItemRow[]> {
     const [rows] = await pool.query<MenuItemRow[]>(`${SELECT_ITEMS} ORDER BY mi.id`);
+    return rows;
+  },
+
+  /** Katalog pelanggan: hanya menu yang ditampilkan (is_available = 1), urut kategori lalu id. */
+  async listAvailable(): Promise<MenuItemRow[]> {
+    const [rows] = await pool.query<MenuItemRow[]>(
+      `${SELECT_ITEMS} WHERE mi.is_available = 1 ORDER BY mi.category_id, mi.id`,
+    );
+    return rows;
+  },
+
+  /**
+   * Menu favorit untuk Home: yang tersedia dan masih ada stok, diurutkan dari yang paling banyak
+   * dipesan dalam `days` hari terakhir (pesanan dibatalkan tidak dihitung). Menu yang belum pernah
+   * dipesan tetap ikut, menyusul di urutan akhir, supaya toko baru tidak menampilkan daftar kosong.
+   */
+  async listPopular(limit: number, days: number): Promise<MenuItemRow[]> {
+    const [rows] = await pool.query<MenuItemRow[]>(
+      `${SELECT_ITEMS}
+       LEFT JOIN (
+         SELECT oi.menu_item_id, SUM(oi.qty) AS sold
+         FROM order_items oi
+         JOIN orders o ON o.id = oi.order_id
+         WHERE o.status <> 'dibatalkan' AND o.created_at >= NOW() - INTERVAL ? DAY
+         GROUP BY oi.menu_item_id
+       ) t ON t.menu_item_id = mi.id
+       WHERE mi.is_available = 1 AND mi.stock > 0
+       ORDER BY COALESCE(t.sold, 0) DESC, mi.id ASC
+       LIMIT ?`,
+      [days, limit],
+    );
     return rows;
   },
 
