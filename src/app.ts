@@ -5,6 +5,7 @@ import { env } from './config/env.js';
 import { errorHandler, notFoundHandler } from './middlewares/errorHandler.js';
 import { adminRoutes } from './routes/adminRoutes.js';
 import { authRoutes } from './routes/authRoutes.js';
+import { chatRoutes } from './routes/chatRoutes.js';
 import { meRoutes } from './routes/meRoutes.js';
 
 export const app = express();
@@ -46,6 +47,7 @@ app.get('/health', (_req, res) => {
 app.use('/api/admin', adminRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api', meRoutes);
+app.use('/api', chatRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

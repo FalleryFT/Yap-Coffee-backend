@@ -61,6 +61,11 @@ export const env = {
     // Ukuran, tingkat manis, dan jenis kategori (minuman/makanan) diatur admin di database.
   },
 
+  // Layanan chatbot (FastAPI) yang menjawab pertanyaan pelanggan.
+  chat: {
+    url: process.env.CHAT_SERVICE_URL ?? 'http://127.0.0.1:8000/chat',
+  },
+
   payment: {
     // Hanya untuk uji coba. Di produksi set PAYMENT_SIMULATED=false.
     simulated: (process.env.PAYMENT_SIMULATED ?? 'true') === 'true',
