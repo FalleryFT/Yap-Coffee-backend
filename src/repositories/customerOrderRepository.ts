@@ -7,7 +7,7 @@ import type { OrderStatusDb, PaymentStatusDb } from '../types/db.js';
 import { AppError } from '../utils/AppError.js';
 import { ACTIVE_STATUSES, FINISHED_STATUSES } from '../utils/orderStatus.js';
 import type { CreateOrderInput } from '../validators/customerValidators.js';
-import type { SizeOptionRow, SugarOptionRow } from './optionsRepository.js';
+import type { MenuSizeRow, MenuSugarRow } from '../types/db.js';
 import { releaseStock } from './orderStock.js';
 
 /** Satu pesanan milik pelanggan beserta jadwal dan pembayarannya. */
@@ -64,7 +64,8 @@ const SELECT_ORDERS = `
 
 interface MenuLockRow extends RowDataPacket {
   id: number;
-  category_id: number;
+  menu_type: 'makanan' | 'minuman';
+  category_id: number | null;
   name: string;
   price: number;
   stock: number;
@@ -76,11 +77,6 @@ interface AddonRow extends RowDataPacket {
   menu_item_id: number;
   label: string;
   extra_price: number;
-}
-
-interface CategoryRow extends RowDataPacket {
-  id: number;
-  has_options: number;
 }
 
 interface IdRow extends RowDataPacket {
@@ -135,26 +131,23 @@ export const customerOrderRepository = {
       // 2) Kunci baris menu (urut id agar tidak saling menunggu) dan baca stok terbaru.
       const menuIds = [...new Set(input.items.map((i) => i.menuItemId))].sort((a, b) => a - b);
       const [menuRows] = await conn.query<MenuLockRow[]>(
-        `SELECT id, category_id, name, price, stock, is_available
+        `SELECT id, menu_type, category_id, name, price, stock, is_available
          FROM menu_items WHERE id IN (?) ORDER BY id FOR UPDATE`,
         [menuIds],
       );
       const menuById = new Map(menuRows.map((m) => [m.id, m]));
 
-      const [categoryRows] = await conn.query<CategoryRow[]>('SELECT id, has_options FROM menu_categories');
-      const categoryHasOptions = new Map(categoryRows.map((c) => [c.id, c.has_options === 1]));
-
-      // Ukuran dan tingkat manis yang berlaku saat ini (diatur admin).
-      const [sizeRows] = await conn.query<SizeOptionRow[]>(
-        'SELECT id, label, detail, extra_price, is_default FROM menu_sizes ORDER BY sort_order, id',
+      // Ukuran dan tingkat manis yang berlaku saat ini untuk menu yang dipesan (diatur admin per menu).
+      const [sizeRows] = await conn.query<MenuSizeRow[]>(
+        `SELECT id, menu_item_id, label, oz, extra_price, is_default
+         FROM menu_item_sizes WHERE menu_item_id IN (?) ORDER BY menu_item_id, sort_order, id`,
+        [menuIds],
       );
-      const [sugarRows] = await conn.query<SugarOptionRow[]>(
-        'SELECT id, label, is_default FROM sugar_levels ORDER BY sort_order, id',
+      const [sugarRows] = await conn.query<MenuSugarRow[]>(
+        `SELECT id, menu_item_id, label, is_default
+         FROM menu_item_sugar_levels WHERE menu_item_id IN (?) ORDER BY menu_item_id, sort_order, id`,
+        [menuIds],
       );
-      const sizeByLabel = new Map(sizeRows.map((s) => [s.label.toLowerCase(), s]));
-      const sugarByLabel = new Map(sugarRows.map((s) => [s.label.toLowerCase(), s]));
-      const defaultSize = sizeRows.find((s) => s.is_default === 1) ?? sizeRows[0];
-      const defaultSugar = sugarRows.find((s) => s.is_default === 1) ?? sugarRows[0];
 
       const addonIds = [...new Set(input.items.flatMap((i) => i.addonIds))];
       const [addonRows] = addonIds.length
@@ -189,7 +182,6 @@ export const customerOrderRepository = {
       // 4) Hitung harga baris dan total.
       const lines = input.items.map((line) => {
         const menu = menuById.get(line.menuItemId)!;
-        const plain = categoryHasOptions.get(menu.category_id) === false;
 
         const addons = line.addonIds.map((id) => {
           const addon = addonById.get(id);
@@ -199,23 +191,33 @@ export const customerOrderRepository = {
           return addon;
         });
 
+        // Makanan tidak punya pilihan. Minuman hanya punya pilihan bila admin mengisinya;
+        // daftar kosong berarti ukuran/manis disimpan null dan tanpa tambahan harga.
         let size: string | null = null;
         let sugar: string | null = null;
         let sizeExtra = 0;
-        if (!plain) {
-          const chosenSize = line.size ? sizeByLabel.get(line.size.toLowerCase()) : defaultSize;
-          if (!chosenSize) {
-            throw AppError.validation({ items: [`Ukuran untuk ${menu.name} tidak tersedia.`] });
+        if (menu.menu_type === 'minuman') {
+          const menuSizes = sizeRows.filter((x) => x.menu_item_id === menu.id);
+          const menuSugars = sugarRows.filter((x) => x.menu_item_id === menu.id);
+          if (menuSizes.length > 0) {
+            const chosenSize = line.size
+              ? menuSizes.find((x) => x.label.toLowerCase() === line.size!.toLowerCase())
+              : (menuSizes.find((x) => x.is_default === 1) ?? menuSizes[0]);
+            if (!chosenSize) {
+              throw AppError.validation({ items: [`Ukuran untuk ${menu.name} tidak tersedia.`] });
+            }
+            size = chosenSize.label;
+            sizeExtra = chosenSize.extra_price;
           }
-          const chosenSugar = line.sugarLevel
-            ? sugarByLabel.get(line.sugarLevel.toLowerCase())
-            : defaultSugar;
-          if (!chosenSugar) {
-            throw AppError.validation({ items: [`Tingkat manis untuk ${menu.name} tidak tersedia.`] });
+          if (menuSugars.length > 0) {
+            const chosenSugar = line.sugarLevel
+              ? menuSugars.find((x) => x.label.toLowerCase() === line.sugarLevel!.toLowerCase())
+              : (menuSugars.find((x) => x.is_default === 1) ?? menuSugars[0]);
+            if (!chosenSugar) {
+              throw AppError.validation({ items: [`Tingkat manis untuk ${menu.name} tidak tersedia.`] });
+            }
+            sugar = chosenSugar.label;
           }
-          size = chosenSize.label;
-          sugar = chosenSugar.label;
-          sizeExtra = chosenSize.extra_price;
         }
         const unitPrice =
           menu.price + sizeExtra + addons.reduce((sum, a) => sum + a.extra_price, 0);

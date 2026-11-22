@@ -1,29 +1,31 @@
 import type { Request, Response } from 'express';
 import { menuRepository } from '../../repositories/menuRepository.js';
-import { optionsRepository } from '../../repositories/optionsRepository.js';
 import { scheduleRepository } from '../../repositories/scheduleRepository.js';
 import { toCustomerMenuDto } from '../../utils/customerMenuDto.js';
 import { coordinatesOf } from '../../utils/mapsCoordinates.js';
-import { toOptionsDto } from '../../utils/optionsDto.js';
 import { hhmm } from '../../utils/orderDto.js';
 import { ok } from '../../utils/response.js';
 
 export const customerMenuController = {
   /** GET /api/menu — katalog untuk pelanggan: kategori, menu tersedia, dan tambahannya. */
   async catalog(_req: Request, res: Response) {
-    const [categories, rows, sizes, sugarLevels] = await Promise.all([
+    const [categories, rows] = await Promise.all([
       menuRepository.listCategories(),
       menuRepository.listAvailable(),
-      optionsRepository.listSizes(),
-      optionsRepository.listSugarLevels(),
     ]);
-    const addons = await menuRepository.listAddons(rows.map((r) => r.id));
+    const ids = rows.map((r) => r.id);
+    const [addons, sizes, sugarLevels] = await Promise.all([
+      menuRepository.listAddons(ids),
+      menuRepository.listSizes(ids),
+      menuRepository.listSugarLevels(ids),
+    ]);
 
     ok(res, 'OK', {
       categories: categories.map((c) => c.name),
-      items: rows.map((row) => toCustomerMenuDto(row, addons)),
-      // Ukuran dan tingkat manis yang diatur admin; dipakai di sheet tambah ke keranjang.
-      options: toOptionsDto(sizes, sugarLevels),
+      // Ukuran dan tingkat manis ikut di tiap item (diatur admin per menu).
+      items: rows.map((row) => toCustomerMenuDto(row, addons, sizes, sugarLevels)),
+      // Daftar global sudah tidak ada. Dikirim kosong agar aplikasi versi lama tidak error saat membaca `options`.
+      options: { sizes: [], sugarLevels: [] },
     });
   },
 

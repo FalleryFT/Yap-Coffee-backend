@@ -1,14 +1,20 @@
 import type { Request, Response } from 'express';
 import { menuRepository } from '../../repositories/menuRepository.js';
 import { notificationRepository } from '../../repositories/notificationRepository.js';
-import type { MenuAddonRow, MenuItemRow } from '../../types/db.js';
+import type { MenuAddonRow, MenuItemRow, MenuSizeRow, MenuSugarRow, MenuType } from '../../types/db.js';
 import { AppError } from '../../utils/AppError.js';
+import { toSizesDto, toSugarLevelsDto } from '../../utils/menuOptionsDto.js';
 import { created, ok } from '../../utils/response.js';
 import { looksLikeImage, removeMenuImage } from '../../utils/uploads.js';
 import type { CreateCategoryInput, CreateMenuInput, UpdateMenuInput } from '../../validators/menuValidators.js';
 
 /** Bentuk satu menu untuk frontend (src/types/admin.ts → MenuItem), addons berupa objek. */
-function toMenuDto(row: MenuItemRow, addons: MenuAddonRow[]) {
+function toMenuDto(
+  row: MenuItemRow,
+  addons: MenuAddonRow[],
+  sizes: MenuSizeRow[],
+  sugarLevels: MenuSugarRow[],
+) {
   return {
     id: row.id,
     name: row.name,
@@ -18,8 +24,12 @@ function toMenuDto(row: MenuItemRow, addons: MenuAddonRow[]) {
     stock: row.stock,
     image: row.image ?? undefined,
     available: row.is_available === 1,
-    // Minuman (true) mendapat pilihan ukuran dan tingkat manis; makanan (false) tidak.
+    // Jenis menu; terkunci setelah dibuat.
+    menuType: row.menu_type,
+    // Minuman (true) boleh punya pilihan ukuran dan tingkat manis; makanan (false) tidak.
     hasOptions: row.has_options === 1,
+    sizes: toSizesDto(sizes, row.id),
+    sugarLevels: toSugarLevelsDto(sugarLevels, row.id),
     addons: addons
       .filter((a) => a.menu_item_id === row.id)
       .map((a) => ({ id: a.id, label: a.label, extra_price: a.extra_price })),
@@ -39,26 +49,42 @@ function parseCategoryId(req: Request): number {
   return id;
 }
 
-async function resolveCategoryId(name: string): Promise<number> {
-  const categoryId = await menuRepository.findCategoryIdByName(name);
-  if (categoryId === null) {
+/** Kategori harus ada dan sejenis dengan menunya (kategori minuman untuk minuman, dst.). */
+async function resolveCategoryId(name: string, menuType: MenuType): Promise<number> {
+  const category = await menuRepository.findCategoryByName(name);
+  if (category === null) {
     throw AppError.validation({ category: ['Kategori tidak dikenal.'] });
   }
-  return categoryId;
+  if ((category.has_options === 1) !== (menuType === 'minuman')) {
+    throw AppError.validation({
+      category: [`Kategori ini bukan kategori ${menuType}. Pilih kategori yang sesuai jenis menu.`],
+    });
+  }
+  return category.id;
 }
 
 async function loadMenu(id: number) {
   const row = await menuRepository.findItemById(id);
   if (!row) throw AppError.notFound('Menu tidak ditemukan.');
-  return toMenuDto(row, await menuRepository.listAddons([id]));
+  const [addons, sizes, sugarLevels] = await Promise.all([
+    menuRepository.listAddons([id]),
+    menuRepository.listSizes([id]),
+    menuRepository.listSugarLevels([id]),
+  ]);
+  return toMenuDto(row, addons, sizes, sugarLevels);
 }
 
 export const adminMenuController = {
   /** GET /api/admin/menu — seluruh menu beserta tambahan; filter/pencarian dilakukan di frontend. */
   async list(_req: Request, res: Response) {
     const rows = await menuRepository.listItems();
-    const addons = await menuRepository.listAddons(rows.map((r) => r.id));
-    ok(res, 'OK', rows.map((row) => toMenuDto(row, addons)));
+    const ids = rows.map((r) => r.id);
+    const [addons, sizes, sugarLevels] = await Promise.all([
+      menuRepository.listAddons(ids),
+      menuRepository.listSizes(ids),
+      menuRepository.listSugarLevels(ids),
+    ]);
+    ok(res, 'OK', rows.map((row) => toMenuDto(row, addons, sizes, sugarLevels)));
   },
 
   /** GET /api/admin/menu/categories */
@@ -104,8 +130,14 @@ export const adminMenuController = {
       if (!Number.isInteger(moveTo) || moveTo <= 0 || moveTo === id) {
         throw AppError.validation({ moveTo: ['Kategori tujuan tidak valid.'] });
       }
-      if ((await menuRepository.findCategoryById(moveTo)) === null) {
+      const target = await menuRepository.findCategoryById(moveTo);
+      if (target === null) {
         throw AppError.validation({ moveTo: ['Kategori tujuan tidak dikenal.'] });
+      }
+      // Menu tidak boleh berpindah ke kategori berjenis lain (minuman ↔ makanan).
+      const source = await menuRepository.findCategoryById(id);
+      if (source && source.has_options !== target.has_options) {
+        throw AppError.validation({ moveTo: ['Kategori tujuan harus sejenis (minuman/makanan).'] });
       }
     }
 
@@ -140,7 +172,7 @@ export const adminMenuController = {
   /** POST /api/admin/menu */
   async create(req: Request, res: Response) {
     const input = req.body as CreateMenuInput;
-    const categoryId = await resolveCategoryId(input.category);
+    const categoryId = await resolveCategoryId(input.category, input.menuType);
     const id = await menuRepository.create(input, categoryId);
 
     // Menu yang langsung tampil di katalog diumumkan ke pelanggan; menu tersembunyi tidak.
@@ -160,8 +192,17 @@ export const adminMenuController = {
     const existing = await menuRepository.findItemById(id);
     if (!existing) throw AppError.notFound('Menu tidak ditemukan.');
 
-    const categoryId = input.category ? await resolveCategoryId(input.category) : undefined;
-    await menuRepository.update(id, input, categoryId);
+    // Jenis menu terkunci: boleh dikirim ulang, tapi tidak boleh berbeda dari yang tersimpan.
+    if (input.menuType !== undefined && input.menuType !== existing.menu_type) {
+      throw AppError.validation({ menuType: ['Jenis menu tidak bisa diubah setelah dibuat.'] });
+    }
+    const categoryId = input.category
+      ? await resolveCategoryId(input.category, existing.menu_type)
+      : undefined;
+    // Makanan tidak punya pilihan ukuran dan manis.
+    const effective =
+      existing.menu_type === 'makanan' ? { ...input, sizes: undefined, sugarLevels: undefined } : input;
+    await menuRepository.update(id, effective, categoryId);
 
     // Foto diganti atau dihapus: berkas lama tidak dipakai lagi.
     if (input.image !== undefined && existing.image !== input.image) {

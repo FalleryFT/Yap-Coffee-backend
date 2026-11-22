@@ -66,6 +66,9 @@ CREATE TABLE IF NOT EXISTS menu_items (
   -- NULL = menu tanpa kategori (hanya tampil di filter "Semua"). Diisi NULL otomatis
   -- saat kategori dihapus, jadi menunya tidak ikut terhapus.
   category_id  INT UNSIGNED NULL,
+  -- Jenis menu: 'minuman' (pelanggan memilih ukuran dan tingkat manis bila admin mengisinya) atau 'makanan'.
+  -- Dipilih saat menu dibuat dan tidak bisa diubah lagi.
+  menu_type    ENUM('makanan','minuman') NOT NULL DEFAULT 'minuman',
   name         VARCHAR(191) NOT NULL,
   description  TEXT,
   price        INT UNSIGNED NOT NULL,            -- rupiah, tanpa format
@@ -208,32 +211,33 @@ CREATE TABLE IF NOT EXISTS notifications (
     ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Pilihan ukuran gelas dan tingkat manis yang tampil di aplikasi pelanggan. Diatur admin di web (Pengaturan).
+-- Ukuran gelas dan tingkat manis diatur per menu minuman (popup Tambah/Edit Menu di web admin).
 -- Pesanan menyimpan namanya sebagai teks, jadi mengubah atau menghapus pilihan tidak merusak pesanan lama.
-CREATE TABLE IF NOT EXISTS menu_sizes (
-  id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  label       VARCHAR(32) NOT NULL UNIQUE,
-  detail      VARCHAR(64) NOT NULL DEFAULT '',        -- contoh: '16 oz'
-  extra_price INT UNSIGNED NOT NULL DEFAULT 0,        -- tambahan harga per gelas
-  is_default  TINYINT(1) NOT NULL DEFAULT 0,
-  sort_order  INT UNSIGNED NOT NULL DEFAULT 0
+CREATE TABLE IF NOT EXISTS menu_item_sizes (
+  id            INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  menu_item_id  INT UNSIGNED NOT NULL,
+  label         VARCHAR(32) NOT NULL,                 -- contoh: Reguler
+  oz            SMALLINT UNSIGNED NULL,               -- contoh: 16 (ditampilkan sebagai "16 oz")
+  extra_price   INT UNSIGNED NOT NULL DEFAULT 0,      -- tambahan harga per gelas
+  is_default    TINYINT(1) NOT NULL DEFAULT 0,
+  sort_order    INT UNSIGNED NOT NULL DEFAULT 0,
+  UNIQUE KEY uq_menu_item_sizes (menu_item_id, label),
+  CONSTRAINT fk_menu_item_sizes_item
+    FOREIGN KEY (menu_item_id) REFERENCES menu_items (id)
+    ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS sugar_levels (
-  id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  label       VARCHAR(32) NOT NULL UNIQUE,
-  is_default  TINYINT(1) NOT NULL DEFAULT 0,
-  sort_order  INT UNSIGNED NOT NULL DEFAULT 0
+CREATE TABLE IF NOT EXISTS menu_item_sugar_levels (
+  id            INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  menu_item_id  INT UNSIGNED NOT NULL,
+  label         VARCHAR(32) NOT NULL,
+  is_default    TINYINT(1) NOT NULL DEFAULT 0,
+  sort_order    INT UNSIGNED NOT NULL DEFAULT 0,
+  UNIQUE KEY uq_menu_item_sugar_levels (menu_item_id, label),
+  CONSTRAINT fk_menu_item_sugar_levels_item
+    FOREIGN KEY (menu_item_id) REFERENCES menu_items (id)
+    ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-INSERT IGNORE INTO menu_sizes (label, detail, extra_price, is_default, sort_order) VALUES
-  ('Reguler', '16 oz', 0, 1, 1),
-  ('Large',   '22 oz', 5000, 0, 2);
-
-INSERT IGNORE INTO sugar_levels (label, is_default, sort_order) VALUES
-  ('Normal', 0, 1),
-  ('Less Sugar', 1, 2),
-  ('No Sugar', 0, 3);
 
 INSERT IGNORE INTO store_settings (setting_key, setting_value) VALUES
   ('outlet_name', 'Yap Coffee');
