@@ -7,9 +7,9 @@ import {
   type CustomerOrderRow,
 } from '../repositories/customerOrderRepository.js';
 import { menuRepository } from '../repositories/menuRepository.js';
-import { optionsRepository } from '../repositories/optionsRepository.js';
 import { scheduleRepository } from '../repositories/scheduleRepository.js';
 import { AppError } from '../utils/AppError.js';
+import { ozDetail } from '../utils/menuOptionsDto.js';
 import { hhmm } from '../utils/orderDto.js';
 import { ok } from '../utils/response.js';
 
@@ -86,6 +86,10 @@ type ChatMenuItem = {
   habis: boolean;
   deskripsi: string;
   tambahan: { label: string; biaya: number }[];
+  /** Pilihan ukuran gelas menu ini (kosong bila admin tidak mengisinya atau menu makanan). */
+  ukuran: { label: string; detail: string; tambahan: number }[];
+  /** Pilihan tingkat manis menu ini. */
+  manis: string[];
 };
 
 type ChatOptions = {
@@ -131,16 +135,17 @@ async function loadCatalog(): Promise<Catalog> {
   if (catalogCache && Date.now() - catalogCache.at < CACHE_MS) return catalogCache.data;
   try {
     const rows = (await menuRepository.listAvailable()).slice(0, MAX_MENU_ITEMS);
+    const ids = rows.map((r) => r.id);
     const [addons, sizes, sugarLevels] = await Promise.all([
-      menuRepository.listAddons(rows.map((r) => r.id)),
-      optionsRepository.listSizes(),
-      optionsRepository.listSugarLevels(),
+      menuRepository.listAddons(ids),
+      menuRepository.listSizes(ids),
+      menuRepository.listSugarLevels(ids),
     ]);
     const data: Catalog = {
       menu: rows.map((row) => ({
         nama: row.name,
         kategori: row.category ?? '',
-        jenis: row.has_options === 1 ? 'minuman' : 'makanan',
+        jenis: row.menu_type,
         harga: Number(row.price),
         habis: row.stock <= 0,
         deskripsi: row.description ?? '',
@@ -148,15 +153,13 @@ async function loadCatalog(): Promise<Catalog> {
           .filter((a) => a.menu_item_id === row.id)
           .slice(0, 4)
           .map((a) => ({ label: a.label, biaya: Number(a.extra_price) })),
+        ukuran: sizes
+          .filter((x) => x.menu_item_id === row.id)
+          .map((x) => ({ label: x.label, detail: ozDetail(x.oz), tambahan: Number(x.extra_price) })),
+        manis: sugarLevels.filter((x) => x.menu_item_id === row.id).map((x) => x.label),
       })),
-      opsi: {
-        ukuran: sizes.map((s) => ({
-          label: s.label,
-          detail: s.detail,
-          tambahan: Number(s.extra_price),
-        })),
-        manis: sugarLevels.map((s) => s.label),
-      },
+      // Pilihan ukuran dan manis sekarang ada di tiap menu (ukuran, manis), bukan daftar global.
+      opsi: null,
     };
     catalogCache = { at: Date.now(), data };
     return data;
