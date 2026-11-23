@@ -4,32 +4,54 @@ import type { PickupScheduleRow } from '../types/db.js';
 import { resolveCoordinates } from '../utils/mapsCoordinates.js';
 import type { CreateScheduleInput, UpdateScheduleInput } from '../validators/scheduleValidators.js';
 
+/** Status tampilan, dihitung dari tanggal pengambilan terhadap hari ini (jam database). */
+export type ScheduleDisplayStatus = 'aktif' | 'mendatang' | 'berakhir';
+export type ScheduleRow = PickupScheduleRow & { display_status: ScheduleDisplayStatus };
+
+/** Jadwal otomatis hilang dari daftar admin mulai H+3 dari tanggal pengambilan. */
+const HIDE_AFTER_DAYS = 3;
+
+// aktif = tanggal pengambilan hari ini, mendatang = tanggal ke depan, berakhir = sudah lewat.
 const SELECT_COLUMNS = `
   SELECT id, name, date, location, location_detail, maps_url, latitude, longitude,
-         pickup_start, pickup_end, cut_off_time, status
+         pickup_start, pickup_end, cut_off_time, status,
+         CASE
+           WHEN date = CURDATE() THEN 'aktif'
+           WHEN date > CURDATE() THEN 'mendatang'
+           ELSE 'berakhir'
+         END AS display_status
   FROM pickup_schedules`;
 
 export const scheduleRepository = {
-  /** Jadwal yang belum selesai (aktif + mendatang), urut tanggal lalu jam mulai. */
-  async listOpen(): Promise<PickupScheduleRow[]> {
-    const [rows] = await pool.query<PickupScheduleRow[]>(
-      `${SELECT_COLUMNS} WHERE status <> 'selesai' ORDER BY date, pickup_start, id`,
-    );
-    return rows;
-  },
-
-  /** Jadwal yang masih menerima pesanan: aktif dan belum lewat batas pemesanan (jam database). */
-  async listOrderable(): Promise<PickupScheduleRow[]> {
-    const [rows] = await pool.query<PickupScheduleRow[]>(
+  /**
+   * Jadwal untuk tabel admin: aktif, mendatang, dan yang baru berakhir.
+   * Yang sudah lewat HIDE_AFTER_DAYS hari tidak ditampilkan lagi (datanya tidak dihapus,
+   * karena pesanan lama merujuk ke jadwal itu).
+   */
+  async listOpen(): Promise<ScheduleRow[]> {
+    const [rows] = await pool.query<ScheduleRow[]>(
       `${SELECT_COLUMNS}
-       WHERE status = 'aktif' AND TIMESTAMP(date, cut_off_time) > NOW()
+       WHERE status <> 'selesai' AND date > DATE_SUB(CURDATE(), INTERVAL ${HIDE_AFTER_DAYS} DAY)
        ORDER BY date, pickup_start, id`,
     );
     return rows;
   },
 
-  async findById(id: number): Promise<PickupScheduleRow | null> {
-    const [rows] = await pool.query<PickupScheduleRow[]>(`${SELECT_COLUMNS} WHERE id = ? LIMIT 1`, [id]);
+  /**
+   * Jadwal yang masih menerima pesanan: aktif dan belum lewat batas pemesanan (jam database).
+   * Cut-off berlaku H-1, yaitu jam cut-off pada hari sebelum tanggal pengambilan.
+   */
+  async listOrderable(): Promise<ScheduleRow[]> {
+    const [rows] = await pool.query<ScheduleRow[]>(
+      `${SELECT_COLUMNS}
+       WHERE status = 'aktif' AND TIMESTAMP(DATE_SUB(date, INTERVAL 1 DAY), cut_off_time) > NOW()
+       ORDER BY date, pickup_start, id`,
+    );
+    return rows;
+  },
+
+  async findById(id: number): Promise<ScheduleRow | null> {
+    const [rows] = await pool.query<ScheduleRow[]>(`${SELECT_COLUMNS} WHERE id = ? LIMIT 1`, [id]);
     return rows[0] ?? null;
   },
 

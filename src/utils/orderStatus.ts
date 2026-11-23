@@ -31,10 +31,11 @@ export const FINISHED_STATUSES: OrderStatusDb[] = ['selesai', 'dibatalkan'];
 export const ALL_STATUSES: OrderStatusDb[] = [...ACTIVE_STATUSES, ...FINISHED_STATUSES];
 
 /**
- * Pesanan selesai/dibatalkan hanya ditampilkan di halaman Orders selama ini (hari sejak status
- * terakhir berubah). Setelah itu disembunyikan dari daftar, datanya tetap ada di database.
+ * Pesanan selesai/dibatalkan disembunyikan dari halaman Orders setelah tanggal jadwal
+ * pengambilannya lewat sejumlah hari ini (H+3). Datanya tetap ada di database,
+ * jadi riwayatnya tetap muncul di halaman History.
  */
-export const FINISHED_VISIBLE_DAYS = 14;
+export const FINISHED_VISIBLE_DAYS = 3;
 
 /** Status yang boleh dipilih lewat dropdown di baris tabel (tanpa "Dibatalkan", itu lewat aksi batal). */
 export const FLOW_LABELS = ['Baru Masuk', 'Diproses', 'Siap Ambil', 'Selesai'] as const;
