@@ -1,27 +1,28 @@
 import type { Request, Response } from 'express';
 import { scheduleRepository } from '../../repositories/scheduleRepository.js';
-import type { PickupScheduleRow } from '../../types/db.js';
+import type { ScheduleRow } from '../../repositories/scheduleRepository.js';
 import { AppError } from '../../utils/AppError.js';
 import { coordinatesOf } from '../../utils/mapsCoordinates.js';
 import { created, ok } from '../../utils/response.js';
 import type { CreateScheduleInput, UpdateScheduleInput } from '../../validators/scheduleValidators.js';
 
-/** Cut-off dianggap mendesak bila tinggal kurang dari 2 jam lagi pada hari pengambilan. */
+/** Cut-off dianggap mendesak bila tinggal kurang dari 2 jam lagi. */
 const URGENT_WINDOW_MS = 2 * 60 * 60 * 1000;
 
 /** 'HH:mm:ss' dari MySQL → 'HH:mm'. */
 const hhmm = (time: string) => time.slice(0, 5);
 
-function isCutOffUrgent(row: PickupScheduleRow, now = new Date()): boolean {
-  if (row.status !== 'aktif') return false;
+function isCutOffUrgent(row: ScheduleRow, now = new Date()): boolean {
+  if (row.display_status === 'berakhir') return false;
   const [y = 1970, m = 1, d = 1] = row.date.split('-').map(Number);
   const [h = 0, min = 0] = row.cut_off_time.split(':').map(Number);
-  const diff = new Date(y, m - 1, d, h, min).getTime() - now.getTime();
+  // Cut-off berlaku H-1: jam cut-off jatuh pada hari sebelum tanggal pengambilan.
+  const diff = new Date(y, m - 1, d - 1, h, min).getTime() - now.getTime();
   return diff > 0 && diff <= URGENT_WINDOW_MS;
 }
 
 /** Bentuk satu jadwal untuk frontend (src/types/admin.ts → PreOrderSchedule). */
-function toScheduleDto(row: PickupScheduleRow) {
+function toScheduleDto(row: ScheduleRow) {
   return {
     id: row.id,
     name: row.name,
@@ -34,8 +35,8 @@ function toScheduleDto(row: PickupScheduleRow) {
     pickupTime: `${hhmm(row.pickup_start)} - ${hhmm(row.pickup_end)} WIB`,
     cutOff: `${hhmm(row.cut_off_time)} WIB`,
     cutOffUrgent: isCutOffUrgent(row),
-    // Frontend hanya mengenal 'aktif' dan 'mendatang'; 'selesai' tidak pernah dikirim (lihat list).
-    status: row.status as 'aktif' | 'mendatang',
+    // aktif = hari pengambilan, mendatang = tanggal ke depan, berakhir = sudah lewat (dihitung dari tanggal).
+    status: row.display_status,
   };
 }
 
@@ -53,7 +54,7 @@ async function loadSchedule(id: number) {
 }
 
 export const adminScheduleController = {
-  /** GET /api/admin/pre-order/schedules — jadwal aktif & mendatang untuk tabel di halaman Pre-Order. */
+  /** GET /api/admin/pre-order/schedules — jadwal aktif, mendatang, dan yang baru berakhir (hilang di H+3). */
   async list(_req: Request, res: Response) {
     const rows = await scheduleRepository.listOpen();
     ok(res, 'OK', rows.map(toScheduleDto));
