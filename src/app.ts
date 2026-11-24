@@ -1,9 +1,9 @@
 import cors from 'cors';
 import express from 'express';
-import morgan from 'morgan';
 import { env } from './config/env.js';
 import { requireAdminAuth, requireCustomerAuth } from './middlewares/auth.js';
 import { errorHandler, notFoundHandler } from './middlewares/errorHandler.js';
+import { requestLogger } from './middlewares/requestLogger.js';
 import { adminRoutes } from './routes/adminRoutes.js';
 import { authRoutes } from './routes/authRoutes.js';
 import { chatRoutes } from './routes/chatRoutes.js';
@@ -30,8 +30,8 @@ app.use(
 );
 app.use(express.json());
 
-// Format ringkas di terminal, dan sengaja tidak mencatat body (berisi sandi/token).
-app.use(morgan('dev'));
+// Satu baris log per permintaan (pino), lengkap dengan ID permintaan. Body sengaja tidak dicatat (berisi sandi/token).
+app.use(requestLogger);
 
 app.get('/health', (_req, res) => {
   res.json({ success: true, message: 'OK', data: { uptime: process.uptime() } });

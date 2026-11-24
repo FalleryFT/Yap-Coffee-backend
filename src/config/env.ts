@@ -8,8 +8,42 @@ function required(name: string, fallback?: string): string {
   return value;
 }
 
+const nodeEnv = process.env.NODE_ENV ?? 'development';
+const isProduction = nodeEnv === 'production';
+const storeName = process.env.STORE_NAME ?? 'Yap Coffee';
+
+// Email OTP dikirim lewat SMTP. Di produksi SMTP wajib ada; di luar produksi boleh kosong
+// (kode OTP lalu hanya ditulis ke log).
+const smtpHost = (process.env.SMTP_HOST ?? '').trim();
+const smtpUser = (process.env.SMTP_USER ?? '').trim();
+const mailFrom = (process.env.MAIL_FROM ?? (smtpUser ? `"${storeName}" <${smtpUser}>` : '')).trim();
+if (isProduction && smtpHost === '') {
+  throw new Error('Variabel lingkungan SMTP_HOST wajib diisi di produksi agar email OTP terkirim.');
+}
+if (smtpHost !== '' && mailFrom === '') {
+  throw new Error('MAIL_FROM atau SMTP_USER wajib diisi bila SMTP_HOST diisi.');
+}
+
 export const env = {
+  nodeEnv,
+  isProduction,
   port: Number(process.env.PORT ?? 3000),
+
+  log: {
+    // fatal | error | warn | info | debug | trace | silent
+    level: process.env.LOG_LEVEL ?? (isProduction ? 'info' : 'debug'),
+    // Format berwarna untuk terminal. Otomatis mati di produksi (keluaran JSON untuk agregator log).
+    pretty: !isProduction && (process.env.LOG_PRETTY ?? 'true') !== 'false',
+  },
+
+  mail: {
+    host: smtpHost,
+    port: Number(process.env.SMTP_PORT ?? 587),
+    secure: (process.env.SMTP_SECURE ?? 'false') === 'true', // true untuk port 465
+    user: smtpUser,
+    password: process.env.SMTP_PASS ?? '',
+    from: mailFrom,
+  },
 
   db: {
     host: required('DB_HOST', '127.0.0.1'),
@@ -51,7 +85,7 @@ export const env = {
 
   // Info toko yang ditampilkan di aplikasi pelanggan (tombol Hubungi Penjual dan Instagram).
   store: {
-    name: process.env.STORE_NAME ?? 'Yap Coffee',
+    name: storeName,
     // Hanya cadangan bila tabel store_settings kosong; nilai yang berlaku diatur admin di halaman Pengaturan.
     whatsapp: process.env.STORE_WHATSAPP ?? '081231242277',
     instagram: process.env.STORE_INSTAGRAM ?? 'https://www.instagram.com/yap_coffee_/',

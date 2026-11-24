@@ -11,7 +11,10 @@ import { scheduleRepository } from '../repositories/scheduleRepository.js';
 import { AppError } from '../utils/AppError.js';
 import { ozDetail } from '../utils/menuOptionsDto.js';
 import { hhmm } from '../utils/orderDto.js';
+import { logger } from '../utils/logger.js';
 import { ok } from '../utils/response.js';
+
+const log = logger.child({ module: 'chat' });
 
 /** Panjang maksimal satu pesan dan jumlah riwayat yang diteruskan ke layanan chatbot. */
 const MAX_PESAN_LENGTH = 500;
@@ -164,7 +167,7 @@ async function loadCatalog(): Promise<Catalog> {
     catalogCache = { at: Date.now(), data };
     return data;
   } catch (err) {
-    console.error('[chat] gagal membaca menu:', err);
+    log.error({ err }, 'Gagal membaca menu.');
     return { menu: [], opsi: null };
   }
 }
@@ -183,7 +186,7 @@ async function loadSchedules(): Promise<ChatScheduleItem[] | null> {
       detail_lokasi: row.location_detail ?? '',
     }));
   } catch (err) {
-    console.error('[chat] gagal membaca jadwal:', err);
+    log.error({ err }, 'Gagal membaca jadwal.');
     return null;
   }
 }
@@ -243,7 +246,7 @@ async function loadOrders(
         })),
     }));
   } catch (err) {
-    console.error(`[chat] gagal membaca pesanan (${tab}):`, err);
+    log.error({ err, tab }, 'Gagal membaca pesanan.');
     return null;
   }
 }
@@ -289,7 +292,7 @@ async function askChatService(payload: ChatPayload): Promise<string> {
   } catch (err) {
     // 401 sengaja tidak dipakai: aplikasi pelanggan otomatis keluar saat menerima 401.
     if (err instanceof AppError) throw err;
-    console.error('[chat service]', err);
+    log.error({ err }, 'Layanan chatbot gagal dihubungi.');
     throw new AppError(503, CHAT_UNAVAILABLE);
   } finally {
     clearTimeout(timer);
@@ -323,10 +326,15 @@ chatRoutes.post('/chat', requireCustomerAuth, chatLimiter, async (req, res, next
     ]);
     const biaya = POLA_BIAYA.test(teks) ? loadFees() : null;
 
-    console.log(
-      `[chat] menu=${catalog.menu.length} jadwal=${jadwal === null ? '-' : jadwal.length} ` +
-        `biaya=${biaya ? 'ya' : '-'} pesanan=${pesanan === null ? '-' : pesanan.length} ` +
-        `riwayat=${pesananLama === null ? '-' : pesananLama.length}`,
+    req.log.debug(
+      {
+        menu: catalog.menu.length,
+        jadwal: jadwal?.length ?? null,
+        biaya: biaya !== null,
+        pesanan: pesanan?.length ?? null,
+        riwayat: pesananLama?.length ?? null,
+      },
+      'Konteks chatbot disiapkan.',
     );
 
     const jawaban = await runExclusive(() =>

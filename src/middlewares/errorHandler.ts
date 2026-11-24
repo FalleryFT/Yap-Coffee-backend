@@ -38,7 +38,7 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
     return;
   }
 
-  console.error('[unhandled error]', err);
+  req.log.error({ err }, 'Galat tak terduga.');
   res.status(500).json({ success: false, message: 'Server sedang bermasalah. Coba lagi nanti.' });
 }
 

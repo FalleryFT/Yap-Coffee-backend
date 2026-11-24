@@ -2,6 +2,7 @@ import type { Request, Response } from 'express';
 import { notificationRepository } from '../../repositories/notificationRepository.js';
 import { orderRepository } from '../../repositories/orderRepository.js';
 import { AppError } from '../../utils/AppError.js';
+import { logger } from '../../utils/logger.js';
 import { toOrderDto } from '../../utils/orderDto.js';
 import { ALL_STATUSES, STATUS_FROM_LABEL, STATUS_LABEL } from '../../utils/orderStatus.js';
 import { ok } from '../../utils/response.js';
@@ -101,7 +102,7 @@ export const adminOrderController = {
       // Gagal membuat notifikasi tidak boleh menggagalkan perubahan status yang sudah tersimpan.
       if (next === 'siap_ambil') {
         await notificationRepository.createOrderReady(id).catch((err: unknown) => {
-          console.error('Gagal membuat notifikasi pesanan siap ambil:', err);
+          logger.error({ err, orderId: id }, 'Gagal membuat notifikasi pesanan siap ambil.');
         });
       }
     }

@@ -1,6 +1,7 @@
 import { Readable } from 'node:stream';
 import { v2 as cloudinary } from 'cloudinary';
 import { env } from '../config/env.js';
+import { logger } from './logger.js';
 
 cloudinary.config({
   cloud_name: env.cloudinary.cloudName,
@@ -55,6 +56,6 @@ export async function removeImage(value: string | null | undefined): Promise<voi
   try {
     await cloudinary.uploader.destroy(publicId, { resource_type: 'image', invalidate: true });
   } catch (err) {
-    console.error('Gagal menghapus foto di Cloudinary:', publicId, err);
+    logger.error({ err, publicId }, 'Gagal menghapus foto di Cloudinary.');
   }
 }

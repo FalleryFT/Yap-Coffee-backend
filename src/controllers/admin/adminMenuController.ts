@@ -4,6 +4,7 @@ import { notificationRepository } from '../../repositories/notificationRepositor
 import type { MenuAddonRow, MenuItemRow, MenuSizeRow, MenuSugarRow, MenuType } from '../../types/db.js';
 import { AppError } from '../../utils/AppError.js';
 import { removeImage, uploadImage } from '../../utils/cloudinary.js';
+import { logger } from '../../utils/logger.js';
 import { toSizesDto, toSugarLevelsDto } from '../../utils/menuOptionsDto.js';
 import { created, ok } from '../../utils/response.js';
 import { looksLikeImage } from '../../utils/uploads.js';
@@ -179,7 +180,7 @@ export const adminMenuController = {
     // Menu yang langsung tampil di katalog diumumkan ke pelanggan; menu tersembunyi tidak.
     if (input.available) {
       await notificationRepository.createNewMenu(id, input.name).catch((err: unknown) => {
-        console.error('Gagal membuat notifikasi menu baru:', err);
+        logger.error({ err, menuId: id }, 'Gagal membuat notifikasi menu baru.');
       });
     }
     created(res, 'Menu berhasil ditambahkan.', await loadMenu(id));
