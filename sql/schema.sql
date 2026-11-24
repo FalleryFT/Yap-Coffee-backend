@@ -26,8 +26,8 @@ CREATE TABLE IF NOT EXISTS customers (
   password_updated_at DATETIME NULL,
   -- Saklar Notifikasi di aplikasi. Bila 0, server tidak membuatkan notifikasi untuk pelanggan ini.
   notifications_enabled TINYINT(1) NOT NULL DEFAULT 1,
-  -- Nama berkas foto profil di uploads/avatars; NULL = memakai foto bawaan aplikasi.
-  avatar        VARCHAR(64) NULL,
+  -- URL foto profil di Cloudinary; NULL = memakai foto bawaan aplikasi.
+  avatar        VARCHAR(255) NULL,
   created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -73,7 +73,7 @@ CREATE TABLE IF NOT EXISTS menu_items (
   description  TEXT,
   price        INT UNSIGNED NOT NULL,            -- rupiah, tanpa format
   stock        INT UNSIGNED NOT NULL DEFAULT 0,  -- sisa stok harian
-  image        VARCHAR(255),
+  image        VARCHAR(255),                     -- URL foto di Cloudinary, atau nama aset bawaan app (yap_latte.png)
   is_available TINYINT(1)   NOT NULL DEFAULT 1,  -- 0 = disembunyikan dari katalog pre-order pelanggan
   created_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

@@ -1,15 +1,14 @@
 import { timingSafeEqual } from 'node:crypto';
-import fs from 'node:fs';
-import path from 'node:path';
 import bcrypt from 'bcryptjs';
 import type { Request, Response } from 'express';
 import { env } from '../../config/env.js';
 import { customerRepository } from '../../repositories/customerRepository.js';
 import { otpRepository } from '../../repositories/otpRepository.js';
 import { AppError } from '../../utils/AppError.js';
+import { removeImage, uploadImage } from '../../utils/cloudinary.js';
 import { signToken } from '../../utils/jwt.js';
 import { generateOtpCode, generateResetToken } from '../../utils/otp.js';
-import { AVATAR_DIR, detectImageExtension, removeAvatar } from '../../utils/uploads.js';
+import { detectImageType } from '../../utils/uploads.js';
 import { ok, created } from '../../utils/response.js';
 import type { ChangePasswordInput, UpdateProfileInput } from '../../validators/customerValidators.js';
 
@@ -32,7 +31,7 @@ function toPublicCustomer(row: {
     // Tersedia pada /me; dipakai halaman Edit Profil ("Bergabung sejak ...").
     ...(row.created_at ? { createdAt: row.created_at } : {}),
     passwordUpdatedAt: row.password_updated_at ?? null,
-    // Nama berkas di /uploads/avatars/<berkas>; null = foto bawaan aplikasi.
+    // URL foto profil di Cloudinary; null = foto bawaan aplikasi.
     avatar: row.avatar ?? null,
   };
 }
@@ -94,35 +93,29 @@ export const customerAuthController = {
     ok(res, 'Profil berhasil diperbarui.', toPublicCustomer(customer));
   },
 
-  /** POST /api/me/change-password */
   /** PUT /api/me/avatar — unggah foto profil (multipart, field "image"). */
   async setAvatar(req: Request, res: Response) {
     const file = req.file;
     if (!file) throw AppError.validation({ image: ['Pilih foto terlebih dahulu.'] });
 
     const customerId = req.customerId!;
-    // Tipe dari klien bisa salah atau dipalsukan; format ditentukan dari isi berkas yang sebenarnya.
-    const extension = await detectImageExtension(file.path);
-    if (!extension) {
-      await removeAvatar(file.filename);
+    if (!detectImageType(file.buffer)) {
       throw AppError.validation({ image: ['Berkas bukan foto JPG, PNG, atau WebP yang valid.'] });
-    }
-    let storedName = file.filename;
-    if (!storedName.endsWith(extension)) {
-      storedName = `${path.parse(file.filename).name}${extension}`;
-      await fs.promises.rename(file.path, path.join(AVATAR_DIR, storedName));
     }
 
     const customer = await customerRepository.findById(customerId);
-    if (!customer) {
-      await removeAvatar(storedName);
-      throw AppError.unauthorized('Sesi berakhir. Silakan masuk lagi.');
-    }
+    if (!customer) throw AppError.unauthorized('Sesi berakhir. Silakan masuk lagi.');
 
-    await customerRepository.setAvatar(customerId, storedName);
-    await removeAvatar(customer.avatar);
+    const url = await uploadImage(file.buffer, 'avatars');
+    try {
+      await customerRepository.setAvatar(customerId, url);
+    } catch (err) {
+      await removeImage(url);
+      throw err;
+    }
+    await removeImage(customer.avatar);
     const updated = await customerRepository.findById(customerId);
-    ok(res, 'Foto profil berhasil diperbarui.', toPublicCustomer(updated ?? { ...customer, avatar: storedName }));
+    ok(res, 'Foto profil berhasil diperbarui.', toPublicCustomer(updated ?? { ...customer, avatar: url }));
   },
 
   /** DELETE /api/me/avatar — kembali ke foto bawaan. */
@@ -131,10 +124,11 @@ export const customerAuthController = {
     const customer = await customerRepository.findById(customerId);
     if (!customer) throw AppError.unauthorized('Sesi berakhir. Silakan masuk lagi.');
     await customerRepository.setAvatar(customerId, null);
-    await removeAvatar(customer.avatar);
+    await removeImage(customer.avatar);
     ok(res, 'Foto profil dihapus.', toPublicCustomer({ ...customer, avatar: null }));
   },
 
+  /** POST /api/me/change-password */
   async changePassword(req: Request, res: Response) {
     const { current_password: current, password } = req.body as ChangePasswordInput;
 

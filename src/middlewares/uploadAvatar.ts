@@ -1,9 +1,7 @@
-import crypto from 'node:crypto';
 import type { NextFunction, Request, Response } from 'express';
 import multer from 'multer';
 import { env } from '../config/env.js';
 import { AppError } from '../utils/AppError.js';
-import { AVATAR_DIR } from '../utils/uploads.js';
 
 const EXTENSIONS: Record<string, string> = {
   'image/jpeg': '.jpg',
@@ -12,12 +10,7 @@ const EXTENSIONS: Record<string, string> = {
 };
 
 const upload = multer({
-  storage: multer.diskStorage({
-    destination: AVATAR_DIR,
-    // Nama acak; nama asli dari klien tidak dipakai sama sekali. Ekstensi final ditentukan dari isi
-    // berkas oleh controller, karena sebagian klien (Dio/Flutter) mengirim tipe application/octet-stream.
-    filename: (_req, file, cb) => cb(null, `${crypto.randomUUID()}${EXTENSIONS[file.mimetype] ?? '.upload'}`),
-  }),
+  storage: multer.memoryStorage(),
   limits: { fileSize: env.upload.maxImageBytes, files: 1 },
   fileFilter: (_req, file, cb) => {
     if (EXTENSIONS[file.mimetype] || file.mimetype === 'application/octet-stream') return cb(null, true);

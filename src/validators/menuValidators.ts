@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isOwnImageUrl } from '../utils/cloudinary.js';
 
 const addonSchema = z.object({
   label: z
@@ -96,12 +97,11 @@ const menuFields = {
     .number({ error: 'Stok harus berupa angka.' })
     .int('Stok harus bilangan bulat.')
     .min(0, 'Stok tidak boleh negatif.'),
-  // Nama berkas hasil unggah (tanpa folder) agar tidak bisa menunjuk ke path lain.
   image: z
     .string()
     .trim()
-    .max(255, 'Nama berkas gambar terlalu panjang.')
-    .regex(/^[\w][\w.-]*$/, 'Nama berkas gambar tidak valid.')
+    .max(255, 'Alamat gambar terlalu panjang.')
+    .refine((v) => isOwnImageUrl(v) || /^[\w][\w.-]*$/.test(v), 'Alamat gambar tidak valid.')
     .nullable()
     .optional(),
   addons: z.array(addonSchema).max(20, 'Maksimal 20 tambahan per menu.').default([]),
@@ -156,7 +156,7 @@ export const createCategorySchema = z.object({
     .min(1, 'Nama kategori wajib diisi.')
     .max(64, 'Nama kategori maksimal 64 karakter.')
     .refine((value) => value.toLowerCase() !== 'semua', {
-      message: 'Nama \"Semua\" sudah dipakai untuk filter, gunakan nama lain.',
+      message: 'Nama "Semua" sudah dipakai untuk filter, gunakan nama lain.',
     }),
   // Jenis kategori: true = minuman (pelanggan memilih ukuran dan tingkat manis), false = makanan.
   hasOptions: z.boolean({ error: 'Jenis kategori harus minuman atau makanan.' }).default(true),
