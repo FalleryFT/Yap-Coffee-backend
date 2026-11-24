@@ -9,6 +9,7 @@ import { ACTIVE_STATUSES, FINISHED_STATUSES } from '../utils/orderStatus.js';
 import type { CreateOrderInput } from '../validators/customerValidators.js';
 import type { MenuSizeRow, MenuSugarRow } from '../types/db.js';
 import { releaseStock } from './orderStock.js';
+import { clearResponseCache } from '../utils/responseCache.js';
 
 /** Satu pesanan milik pelanggan beserta jadwal dan pembayarannya. */
 export interface CustomerOrderRow extends RowDataPacket {
@@ -336,7 +337,7 @@ export const customerOrderRepository = {
 - Mengembalikan jumlah pesanan yang dibatalkan.
    */
   async expireOverdue(): Promise<number> {
-    return inTransaction(async (conn) => {
+    const count = await inTransaction(async (conn) => {
       const [rows] = await conn.query<IdRow[]>(
         `SELECT o.id FROM orders o
          JOIN payments p ON p.order_id = o.id
@@ -351,6 +352,9 @@ export const customerOrderRepository = {
       await releaseStock(conn, ids);
       return ids.length;
     });
+    // Stok dan status berubah di luar permintaan tulis (penyapu berkala atau baca pesanan): buang cache.
+    if (count > 0) clearResponseCache();
+    return count;
   },
 
   /**
