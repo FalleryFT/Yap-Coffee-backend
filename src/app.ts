@@ -2,11 +2,13 @@ import cors from 'cors';
 import express from 'express';
 import morgan from 'morgan';
 import { env } from './config/env.js';
+import { requireAdminAuth, requireCustomerAuth } from './middlewares/auth.js';
 import { errorHandler, notFoundHandler } from './middlewares/errorHandler.js';
 import { adminRoutes } from './routes/adminRoutes.js';
 import { authRoutes } from './routes/authRoutes.js';
 import { chatRoutes } from './routes/chatRoutes.js';
 import { meRoutes } from './routes/meRoutes.js';
+import { clearCacheAfterWrite, responseCache } from './utils/responseCache.js';
 
 export const app = express();
 
@@ -43,6 +45,18 @@ app.use(
 app.get('/health', (_req, res) => {
   res.json({ success: true, message: 'OK', data: { uptime: process.uptime() } });
 });
+
+// ── Cache respons ──
+// Setiap permintaan tulis (POST/PUT/PATCH/DELETE) mengosongkan seluruh cache.
+app.use('/api', clearCacheAfterWrite);
+
+// Saat cache kosong, permintaan diteruskan (next) ke handler aslinya di rute di bawah.
+app.get('/api/admin/menu', requireAdminAuth, responseCache(30_000));
+app.get('/api/admin/menu/categories', requireAdminAuth, responseCache(60_000));
+app.get('/api/admin/settings', requireAdminAuth, responseCache(60_000));
+app.get('/api/admin/history/stats', requireAdminAuth, responseCache(120_000));
+app.get('/api/admin/history/revenue', requireAdminAuth, responseCache(120_000));
+app.get('/api/menu', requireCustomerAuth, responseCache(15_000)); // katalog pelanggan
 
 app.use('/api/admin', adminRoutes);
 app.use('/api/auth', authRoutes);
