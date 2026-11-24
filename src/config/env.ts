@@ -1,5 +1,4 @@
 import 'dotenv/config';
-import path from 'node:path';
 
 function required(name: string, fallback?: string): string {
   const value = process.env[name] ?? fallback;
@@ -31,9 +30,14 @@ export const env = {
     .map((origin) => origin.trim())
     .filter(Boolean),
 
-  // Foto yang diunggah admin disimpan di disk dan disajikan lewat /uploads.
+  cloudinary: {
+    cloudName: required('CLOUDINARY_CLOUD_NAME'),
+    apiKey: required('CLOUDINARY_API_KEY'),
+    apiSecret: required('CLOUDINARY_API_SECRET'),
+    folder: process.env.CLOUDINARY_FOLDER ?? 'yap-coffee',
+  },
+
   upload: {
-    dir: path.resolve(process.env.UPLOAD_DIR ?? 'uploads'),
     maxImageBytes: 2 * 1024 * 1024,
   },
 
