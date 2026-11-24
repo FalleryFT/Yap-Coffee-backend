@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { env } from '../config/env.js';
 
 const passwordRule = z
   .string({ error: 'Kata sandi wajib diisi.' })
@@ -38,7 +39,9 @@ export const sendOtpSchema = z.object({
 
 export const verifyOtpSchema = z.object({
   email: z.email('Format email belum benar.'),
-  otp: z.string({ error: 'Kode OTP wajib diisi.' }).length(4, 'Kode OTP harus 4 digit.'),
+  otp: z
+    .string({ error: 'Kode OTP wajib diisi.' })
+    .regex(new RegExp(`^\\d{${env.otp.length}}$`), `Kode OTP harus ${env.otp.length} digit angka.`),
 });
 
 export const resetPasswordSchema = z

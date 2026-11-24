@@ -1,12 +1,15 @@
 import { timingSafeEqual } from 'node:crypto';
 import bcrypt from 'bcryptjs';
 import type { Request, Response } from 'express';
+import type { Logger } from 'pino';
 import { env } from '../../config/env.js';
 import { customerRepository } from '../../repositories/customerRepository.js';
 import { otpRepository } from '../../repositories/otpRepository.js';
 import { AppError } from '../../utils/AppError.js';
 import { removeImage, uploadImage } from '../../utils/cloudinary.js';
 import { signToken } from '../../utils/jwt.js';
+import { maskEmail } from '../../utils/logger.js';
+import { sendOtpEmail } from '../../utils/mailer.js';
 import { generateOtpCode, generateResetToken } from '../../utils/otp.js';
 import { detectImageType } from '../../utils/uploads.js';
 import { ok, created } from '../../utils/response.js';
@@ -43,6 +46,25 @@ function sameCode(a: string, b: string): boolean {
 }
 
 const OTP_WRONG = 'Kode OTP salah atau sudah kedaluwarsa.';
+
+/**
+ * Mengirim email OTP di latar belakang, tanpa ditunggu respons HTTP. Dua alasannya:
+ * 1) lamanya SMTP tidak boleh membedakan email terdaftar dari yang tidak (celah waktu), dan
+ * 2) galat SMTP tidak boleh membocorkan apakah email terdaftar.
+ * Bila gagal, baris OTP dihapus supaya pengguna bisa langsung meminta ulang tanpa menunggu jeda.
+ */
+function deliverOtp(log: Logger, otpId: number, to: string, name: string, code: string): void {
+  sendOtpEmail({ to, name, code, ttlMinutes: env.otp.codeTtlMinutes })
+    .then((sent) => {
+      if (sent) log.info({ email: maskEmail(to) }, 'Email OTP diterima server SMTP.');
+    })
+    .catch((err: unknown) => {
+      log.error({ err, email: maskEmail(to) }, 'Email OTP gagal dikirim.');
+      return otpRepository.remove(otpId).catch((removeErr: unknown) => {
+        log.error({ err: removeErr, otpId }, 'Gagal menghapus OTP yang emailnya tidak terkirim.');
+      });
+    });
+}
 
 export const customerAuthController = {
   async login(req: Request, res: Response) {
@@ -152,8 +174,9 @@ export const customerAuthController = {
   async sendOtp(req: Request, res: Response) {
     const { email } = req.body as { email: string };
 
-    // Jeda kirim ulang dicek dari baris OTP mana pun untuk email ini, bukan hanya baris akun terdaftar,
-    // supaya endpoint ini tidak bisa dijadikan oracle untuk menebak email yang terdaftar.
+    // Jeda kirim ulang dicek dari baris OTP terbaru untuk email ini. Email yang tidak terdaftar juga
+    // meninggalkan baris (createDecoy di bawah), jadi jeda ini berlaku sama untuk semua email dan
+    // tidak bisa dijadikan oracle untuk menebak email yang terdaftar.
     const latest = await otpRepository.findLatest(email);
     if (latest) {
       // age_seconds dihitung database, jadi tidak terpengaruh beda zona waktu Node dan MySQL.
@@ -163,14 +186,16 @@ export const customerAuthController = {
       }
     }
 
-    // Baris OTP hanya dibuat jika emailnya benar-benar terdaftar, tetapi pesan ke klien
-    // selalu sama agar endpoint ini tidak bisa dipakai untuk menebak email yang terdaftar.
+    // Pesan ke klien selalu sama, terdaftar atau tidak, agar endpoint ini tidak bisa dipakai
+    // untuk menebak email yang terdaftar.
     const customer = await customerRepository.findByEmail(email);
     if (customer) {
       const code = generateOtpCode();
-      await otpRepository.create(email, code);
-      // Pengiriman email sungguhan ada di luar cakupan proyek ini (lihat README backend-api).
-      console.log(`[OTP] Kode untuk ${email}: ${code}`);
+      const otpId = await otpRepository.create(email, code);
+      deliverOtp(req.log, otpId, customer.email, customer.name, code);
+    } else {
+      await otpRepository.createDecoy(email);
+      req.log.info({ email: maskEmail(email) }, 'OTP diminta untuk email yang tidak terdaftar.');
     }
 
     ok(res, 'Jika email terdaftar, kode OTP sudah dikirim.', null);
@@ -182,16 +207,23 @@ export const customerAuthController = {
     // Hanya satu OTP yang berlaku per email, dan tiap OTP dibatasi jumlah salah tebaknya,
     // sehingga 10.000 kemungkinan kode 4 digit tidak bisa ditebak habis walau ganti-ganti IP.
     const active = await otpRepository.findActive(email);
-    if (!active || active.attempts >= env.otp.maxAttempts) {
+    if (!active) {
+      throw AppError.validation({ otp: [OTP_WRONG] });
+    }
+    // Kesempatan dipakai lebih dulu (atomik), baru kode dibandingkan. Memeriksa `attempts` lalu
+    // menambahnya terpisah akan membuka celah: permintaan paralel lolos sebelum hitungan naik.
+    if (!(await otpRepository.useAttempt(active.id))) {
+      req.log.warn({ email: maskEmail(email) }, 'Kesempatan tebak OTP habis.');
       throw AppError.validation({ otp: [OTP_WRONG] });
     }
     if (!sameCode(active.code, otp)) {
-      await otpRepository.incrementAttempts(active.id);
+      req.log.warn({ email: maskEmail(email), attempt: active.attempts + 1 }, 'OTP salah.');
       throw AppError.validation({ otp: [OTP_WRONG] });
     }
 
     const resetToken = generateResetToken();
     await otpRepository.markVerified(active.id, resetToken);
+    req.log.info({ email: maskEmail(email) }, 'OTP terverifikasi.');
     ok(res, 'OTP terverifikasi.', { reset_token: resetToken });
   },
 
@@ -209,6 +241,7 @@ export const customerAuthController = {
     const passwordHash = await bcrypt.hash(password, PASSWORD_HASH_ROUNDS);
     await customerRepository.updatePassword(row.email, passwordHash);
     await otpRepository.invalidateResetToken(row.id);
+    req.log.info({ email: maskEmail(row.email) }, 'Kata sandi direset lewat OTP.');
 
     ok(res, 'Kata sandi berhasil diubah.', null);
   },

@@ -17,17 +17,47 @@ export const otpRepository = {
     return rows[0] ?? null;
   },
 
-  /** OTP baru membuat OTP lama yang belum terpakai hangus, jadi hanya satu kode yang berlaku. */
-  async create(email: string, code: string): Promise<void> {
+  /**
+   * OTP baru membuat OTP lama yang belum terpakai hangus, jadi hanya satu kode yang berlaku.
+   * Mengembalikan id baris baru.
+   */
+  async create(email: string, code: string): Promise<number> {
     await pool.query(
       'UPDATE otp_codes SET consumed_at = NOW() WHERE email = ? AND consumed_at IS NULL',
       [email],
     );
-    await pool.query<ResultSetHeader>(
+    const [result] = await pool.query<ResultSetHeader>(
       `INSERT INTO otp_codes (email, code, expires_at)
        VALUES (?, ?, DATE_ADD(NOW(), INTERVAL ? MINUTE))`,
       [email, code, env.otp.codeTtlMinutes],
     );
+    return result.insertId;
+  },
+
+  /**
+   * Baris pencatat untuk email yang tidak terdaftar: langsung berstatus terpakai sehingga tidak pernah
+   * bisa diverifikasi, tetapi tetap dihitung oleh findLatest. Dengan begitu jeda kirim ulang berlaku sama
+   * untuk email terdaftar maupun tidak, dan respons endpoint tidak bisa dipakai menebak email terdaftar.
+   */
+  async createDecoy(email: string): Promise<void> {
+    await pool.query(
+      `INSERT INTO otp_codes (email, code, expires_at, consumed_at)
+       VALUES (?, '0000', NOW(), NOW())`,
+      [email],
+    );
+  },
+
+  /** Menghapus baris OTP, dipakai saat email gagal terkirim agar pengguna tidak terkena jeda kirim ulang. */
+  async remove(id: number): Promise<void> {
+    await pool.query('DELETE FROM otp_codes WHERE id = ?', [id]);
+  },
+
+  /** Membuang baris OTP yang sudah lebih dari sehari. Mengembalikan jumlah baris yang dihapus. */
+  async purgeOld(): Promise<number> {
+    const [result] = await pool.query<ResultSetHeader>(
+      'DELETE FROM otp_codes WHERE created_at < DATE_SUB(NOW(), INTERVAL 1 DAY)',
+    );
+    return result.affectedRows;
   },
 
   /** OTP yang sedang berlaku untuk email ini (belum terpakai dan belum kedaluwarsa). */
@@ -41,9 +71,17 @@ export const otpRepository = {
     return rows[0] ?? null;
   },
 
-  /** Mencatat satu salah tebak. */
-  async incrementAttempts(id: number): Promise<void> {
-    await pool.query('UPDATE otp_codes SET attempts = attempts + 1 WHERE id = ?', [id]);
+  /**
+   * Memakai satu kesempatan tebak SEBELUM kode dibandingkan, dalam satu pernyataan atomik.
+   * Dengan cara ini permintaan paralel tidak bisa menebak lebih dari env.otp.maxAttempts kali.
+   * Mengembalikan false bila kesempatan sudah habis atau OTP sudah terpakai.
+   */
+  async useAttempt(id: number): Promise<boolean> {
+    const [result] = await pool.query<ResultSetHeader>(
+      'UPDATE otp_codes SET attempts = attempts + 1 WHERE id = ? AND attempts < ? AND consumed_at IS NULL',
+      [id, env.otp.maxAttempts],
+    );
+    return result.affectedRows === 1;
   },
 
   /** Menandai OTP terpakai dan menerbitkan reset_token yang berlaku sebentar untuk langkah ganti sandi. */
