@@ -14,15 +14,18 @@
   "license": "ISC",
   "dependencies": {
     "bcryptjs": "^3.0.3",
+    "cloudinary": "^2.11.0",
     "cors": "^2.8.6",
     "dotenv": "^18.0.5",
     "exceljs": "^4.4.0",
     "express": "^5.2.1",
     "express-rate-limit": "^8.7.0",
     "jsonwebtoken": "^9.0.3",
-    "morgan": "^1.12.1",
     "multer": "^2.5.0",
     "mysql2": "^3.24.5",
+    "nodemailer": "^10.6.1",
+    "pino": "^10.4.0",
+    "pino-http": "^11.0.0",
     "zod": "^4.6.5"
   },
   "devDependencies": {
@@ -30,9 +33,10 @@
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/jsonwebtoken": "^9.0.10",
-    "@types/morgan": "^1.9.10",
     "@types/multer": "^2.3.0",
     "@types/node": "^26.6.4",
+    "@types/nodemailer": "^8.0.2",
+    "pino-pretty": "^13.2.0",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2"
   },

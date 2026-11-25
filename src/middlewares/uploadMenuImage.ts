@@ -1,9 +1,7 @@
-import crypto from 'node:crypto';
 import type { NextFunction, Request, Response } from 'express';
 import multer from 'multer';
 import { env } from '../config/env.js';
 import { AppError } from '../utils/AppError.js';
-import { MENU_IMAGE_DIR } from '../utils/uploads.js';
 
 const EXTENSIONS: Record<string, string> = {
   'image/jpeg': '.jpg',
@@ -12,11 +10,7 @@ const EXTENSIONS: Record<string, string> = {
 };
 
 const upload = multer({
-  storage: multer.diskStorage({
-    destination: MENU_IMAGE_DIR,
-    // Nama acak + ekstensi dari tipe berkas; nama asli dari klien tidak dipakai sama sekali.
-    filename: (_req, file, cb) => cb(null, `${crypto.randomUUID()}${EXTENSIONS[file.mimetype]}`),
-  }),
+  storage: multer.memoryStorage(),
   limits: { fileSize: env.upload.maxImageBytes, files: 1 },
   fileFilter: (_req, file, cb) => {
     if (EXTENSIONS[file.mimetype]) return cb(null, true);

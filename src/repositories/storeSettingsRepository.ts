@@ -1,6 +1,7 @@
 import type { RowDataPacket } from 'mysql2';
 import { pool } from '../config/db.js';
 import { env } from '../config/env.js';
+import { logger } from '../utils/logger.js';
 
 export interface StoreSettings {
   outletName: string;
@@ -22,7 +23,7 @@ export const storeSettingsRepository = {
     } catch (err) {
       // Migrasi 002 belum dijalankan: tetap melayani Home dengan nilai .env, tetapi beri tahu di log.
       if ((err as { code?: string }).code !== 'ER_NO_SUCH_TABLE') throw err;
-      console.warn('Tabel store_settings belum ada. Jalankan sql/migrations/002_store_settings_notifications.sql.');
+      logger.warn('Tabel store_settings belum ada. Jalankan sql/migrations/002_store_settings_notifications.sql.');
     }
     const map = new Map(rows.map((r) => [r.setting_key, r.setting_value]));
     return {

@@ -4,9 +4,12 @@ import { releaseStock } from './orderStock.js';
 import type { OrderItemRow, OrderRow, OrderStatusDb } from '../types/db.js';
 import { ACTIVE_STATUSES, FINISHED_STATUSES, FINISHED_VISIBLE_DAYS } from '../utils/orderStatus.js';
 
-// Pesanan aktif selalu terlihat; yang selesai/dibatalkan hanya sampai FINISHED_VISIBLE_DAYS hari
-// sejak updated_at (waktu status terakhir berubah).
-const VISIBLE = '(o.status IN (?) OR o.updated_at >= NOW() - INTERVAL ? DAY)';
+// Pesanan aktif selalu terlihat. Pesanan selesai/dibatalkan hanya terlihat selama tanggal jadwal
+// pengambilannya belum lewat FINISHED_VISIBLE_DAYS hari (H+3 hilang). Datanya tidak dihapus,
+// jadi halaman History tidak terpengaruh.
+const VISIBLE = `(o.status IN (?) OR o.schedule_id IN (
+  SELECT id FROM pickup_schedules WHERE date > DATE_SUB(CURDATE(), INTERVAL ${FINISHED_VISIBLE_DAYS} DAY)
+))`;
 
 const SELECT_ORDERS = `
   SELECT o.id, o.code, o.status, o.note,
@@ -50,7 +53,7 @@ interface StatusCountRow extends RowDataPacket {
 export const orderRepository = {
   async list(filter: OrderListFilter): Promise<{ rows: OrderRow[]; total: number }> {
     const conditions = ['o.status IN (?)', VISIBLE];
-    const params: unknown[] = [filter.statuses, ACTIVE_STATUSES, FINISHED_VISIBLE_DAYS];
+    const params: unknown[] = [filter.statuses, ACTIVE_STATUSES];
 
     if (filter.createdToday) {
       conditions.push('o.created_at >= CURDATE() AND o.created_at < CURDATE() + INTERVAL 1 DAY');
@@ -109,7 +112,7 @@ export const orderRepository = {
   async countVisible(): Promise<number> {
     const [[row]] = await pool.query<CountRow[]>(
       `SELECT COUNT(*) AS total FROM orders o WHERE ${VISIBLE}`,
-      [ACTIVE_STATUSES, FINISHED_VISIBLE_DAYS],
+      [ACTIVE_STATUSES],
     );
     return row?.total ?? 0;
   },

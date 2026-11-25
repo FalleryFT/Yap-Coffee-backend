@@ -3,9 +3,11 @@ import { menuRepository } from '../../repositories/menuRepository.js';
 import { notificationRepository } from '../../repositories/notificationRepository.js';
 import type { MenuAddonRow, MenuItemRow, MenuSizeRow, MenuSugarRow, MenuType } from '../../types/db.js';
 import { AppError } from '../../utils/AppError.js';
+import { removeImage, uploadImage } from '../../utils/cloudinary.js';
+import { logger } from '../../utils/logger.js';
 import { toSizesDto, toSugarLevelsDto } from '../../utils/menuOptionsDto.js';
 import { created, ok } from '../../utils/response.js';
-import { looksLikeImage, removeMenuImage } from '../../utils/uploads.js';
+import { looksLikeImage } from '../../utils/uploads.js';
 import type { CreateCategoryInput, CreateMenuInput, UpdateMenuInput } from '../../validators/menuValidators.js';
 
 /** Bentuk satu menu untuk frontend (src/types/admin.ts → MenuItem), addons berupa objek. */
@@ -115,10 +117,10 @@ export const adminMenuController = {
   },
 
   /**
-   * DELETE /api/admin/menu/categories/:id
-   * Tanpa `?moveTo` hanya kategori kosong yang boleh dihapus (selain itu 409 → popup konfirmasi).
-   * `?moveTo=<id kategori lain>` memindahkan menu ke kategori lain; `?moveTo=none` melepas menu
-   * dari kategori mana pun (tetap tampil di filter "Semua"). Menu tidak pernah ikut terhapus.
+- DELETE /api/admin/menu/categories/:id
+- Tanpa `?moveTo` hanya kategori kosong yang boleh dihapus (selain itu 409 → popup konfirmasi).
+- `?moveTo=<id kategori lain>` memindahkan menu ke kategori lain; `?moveTo=none` melepas menu
+- dari kategori mana pun (tetap tampil di filter "Semua"). Menu tidak pernah ikut terhapus.
    */
   async removeCategory(req: Request, res: Response) {
     const id = parseCategoryId(req);
@@ -157,16 +159,16 @@ export const adminMenuController = {
     ok(res, 'OK', await loadMenu(parseId(req)));
   },
 
-  /** POST /api/admin/menu/image — multipart, field "image". Mengembalikan nama berkas untuk dikirim ke create/update. */
+  /** POST /api/admin/menu/image */
   async uploadImage(req: Request, res: Response) {
     const file = req.file;
     if (!file) throw AppError.validation({ image: ['Foto wajib dipilih.'] });
 
-    if (!(await looksLikeImage(file.path))) {
-      await removeMenuImage(file.filename);
+    if (!looksLikeImage(file.buffer)) {
       throw AppError.validation({ image: ['Isi berkas bukan gambar JPG, PNG, atau WebP yang valid.'] });
     }
-    created(res, 'Foto berhasil diunggah.', { image: file.filename, url: `/uploads/menu/${file.filename}` });
+    const url = await uploadImage(file.buffer, 'menu');
+    created(res, 'Foto berhasil diunggah.', { image: url, url });
   },
 
   /** POST /api/admin/menu */
@@ -178,7 +180,7 @@ export const adminMenuController = {
     // Menu yang langsung tampil di katalog diumumkan ke pelanggan; menu tersembunyi tidak.
     if (input.available) {
       await notificationRepository.createNewMenu(id, input.name).catch((err: unknown) => {
-        console.error('Gagal membuat notifikasi menu baru:', err);
+        logger.error({ err, menuId: id }, 'Gagal membuat notifikasi menu baru.');
       });
     }
     created(res, 'Menu berhasil ditambahkan.', await loadMenu(id));
@@ -206,7 +208,7 @@ export const adminMenuController = {
 
     // Foto diganti atau dihapus: berkas lama tidak dipakai lagi.
     if (input.image !== undefined && existing.image !== input.image) {
-      await removeMenuImage(existing.image);
+      await removeImage(existing.image);
     }
     ok(res, 'Menu berhasil diperbarui.', await loadMenu(id));
   },
@@ -228,7 +230,7 @@ export const adminMenuController = {
       }
       throw err;
     }
-    await removeMenuImage(existing?.image);
+    await removeImage(existing?.image);
     ok(res, 'Menu berhasil dihapus.', null);
   },
 };
