@@ -112,9 +112,9 @@ async function inTransaction<T>(work: (conn: PoolConnection) => Promise<T>): Pro
 
 export const customerOrderRepository = {
   /**
-- Membuat pesanan lengkap dalam satu transaksi: kunci baris menu, cek stok, hitung harga di
-- server, kurangi stok, lalu simpan pesanan, item, dan pembayaran (QRIS, belum dibayar).
-- Mengembalikan kode pesanan.
+   * Membuat pesanan lengkap dalam satu transaksi: kunci baris menu, cek stok, hitung harga di
+   * server, kurangi stok, lalu simpan pesanan, item, dan pembayaran (QRIS, belum dibayar).
+   * Mengembalikan kode pesanan.
    */
   async create(customerId: number, input: CreateOrderInput): Promise<string> {
     return inTransaction(async (conn) => {
@@ -296,8 +296,8 @@ export const customerOrderRepository = {
   },
 
   /**
-- Pesanan pelanggan yang sudah lunas dan ditandai siap ambil oleh barista (untuk kartu di Home).
-- Bila ada beberapa, yang jadwal pengambilannya paling awal didahulukan. null bila tidak ada.
+   * Pesanan pelanggan yang sudah lunas dan ditandai siap ambil oleh barista (untuk kartu di Home).
+   * Bila ada beberapa, yang jadwal pengambilannya paling awal didahulukan. null bila tidak ada.
    */
   async findReadyForPickup(customerId: number): Promise<CustomerOrderRow | null> {
     const [rows] = await pool.query<CustomerOrderRow[]>(
@@ -344,7 +344,7 @@ export const customerOrderRepository = {
    */
   async expireOverdue(): Promise<number> {
     const unsure = await reconcileOverdue();
-    return inTransaction(async (conn) => {
+    const count = await inTransaction(async (conn) => {
       const [rows] = await conn.query<IdRow[]>(
         `SELECT o.id FROM orders o
          JOIN payments p ON p.order_id = o.id
@@ -367,8 +367,8 @@ export const customerOrderRepository = {
   },
 
   /**
-- Pembayaran simulasi: menandai pesanan lunas. Di produksi, pemanggil sebaiknya webhook
-- penyedia pembayaran, bukan aplikasi pelanggan.
+   * Pembayaran simulasi: menandai pesanan lunas. Di produksi, pemanggil sebaiknya webhook
+   * penyedia pembayaran, bukan aplikasi pelanggan.
    */
   async markPaid(customerId: number, code: string): Promise<'paid' | 'already_paid' | 'expired' | 'not_found'> {
     return inTransaction(async (conn) => {
