@@ -9,6 +9,7 @@ import { ACTIVE_STATUSES, FINISHED_STATUSES } from '../utils/orderStatus.js';
 import type { CreateOrderInput } from '../validators/customerValidators.js';
 import type { MenuSizeRow, MenuSugarRow } from '../types/db.js';
 import { releaseStock } from './orderStock.js';
+import { reconcileOverdue } from '../services/paymentSync.js';
 import { clearResponseCache } from '../utils/responseCache.js';
 
 /** Satu pesanan milik pelanggan beserta jadwal dan pembayarannya. */
@@ -332,17 +333,25 @@ export const customerOrderRepository = {
   },
 
   /**
-- Membatalkan pesanan yang waktu bayarnya habis dan mengembalikan stoknya.
-- Aman dipanggil berulang atau bersamaan: baris dikunci dan status dicek ulang.
-- Mengembalikan jumlah pesanan yang dibatalkan.
+   * Membatalkan pesanan yang waktu bayarnya habis dan mengembalikan stoknya.
+   * Aman dipanggil berulang atau bersamaan: baris dikunci dan status dicek ulang.
+   * Mengembalikan jumlah pesanan yang dibatalkan.
+   *
+   * Pesanan yang sudah punya sesi Snap dicocokkan dulu dengan Midtrans (reconcileOverdue),
+   * supaya pesanan yang sebenarnya sudah dibayar tidak ikut dibatalkan. Pesanan yang
+   * statusnya belum bisa dipastikan (Midtrans tidak terjangkau) dilewati dan dicoba lagi
+   * pada pemanggilan berikutnya.
    */
   async expireOverdue(): Promise<number> {
-    const count = await inTransaction(async (conn) => {
+    const unsure = await reconcileOverdue();
+    return inTransaction(async (conn) => {
       const [rows] = await conn.query<IdRow[]>(
         `SELECT o.id FROM orders o
          JOIN payments p ON p.order_id = o.id
          WHERE o.status = 'menunggu' AND p.status = 'belum_dibayar' AND p.expires_at < NOW()
+           ${unsure.length > 0 ? 'AND o.id NOT IN (?)' : ''}
          ORDER BY o.id FOR UPDATE`,
+        unsure.length > 0 ? [unsure] : [],
       );
       const ids = rows.map((r) => r.id);
       if (ids.length === 0) return 0;

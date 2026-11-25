@@ -12,7 +12,9 @@ import {
 
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 10,
+  // UBAH: batas 10 hanya berlaku di produksi. Saat pengembangan dilonggarkan agar
+  // percobaan login berulang tidak langsung memblokir selama 15 menit.
+  limit: process.env.NODE_ENV === 'production' ? 10 : 200,
   standardHeaders: true,
   legacyHeaders: false,
   message: { success: false, message: 'Terlalu banyak percobaan. Tunggu sebentar lalu coba lagi.' },
