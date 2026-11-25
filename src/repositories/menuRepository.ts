@@ -1,15 +1,23 @@
 import type { ResultSetHeader } from 'mysql2';
 import { pool } from '../config/db.js';
-import type { MenuAddonRow, MenuCategoryRow, MenuItemRow } from '../types/db.js';
+import type {
+  MenuAddonRow,
+  MenuCategoryRow,
+  MenuItemRow,
+  MenuSizeRow,
+  MenuSugarRow, 
+} from '../types/db.js';
 import type { CreateMenuInput, UpdateMenuInput } from '../validators/menuValidators.js';
 
 const SELECT_ITEMS = `
-  SELECT mi.id, mi.category_id, mc.name AS category, mi.name, mi.description,
-         mi.price, mi.stock, mi.image, mi.is_available, mc.has_options
+  SELECT mi.id, mi.category_id, mc.name AS category, mi.menu_type, mi.name, mi.description,
+         mi.price, mi.stock, mi.image, mi.is_available, (mi.menu_type = 'minuman') AS has_options
   FROM menu_items mi
   LEFT JOIN menu_categories mc ON mc.id = mi.category_id`;
 
 type Addons = CreateMenuInput['addons'];
+type Sizes = CreateMenuInput['sizes'];
+type SugarLevels = CreateMenuInput['sugarLevels'];
 
 export const menuRepository = {
   async listCategories(): Promise<MenuCategoryRow[]> {
@@ -30,7 +38,7 @@ export const menuRepository = {
 
   async findCategoryById(id: number): Promise<MenuCategoryRow | null> {
     const [rows] = await pool.query<MenuCategoryRow[]>(
-      'SELECT id, name FROM menu_categories WHERE id = ? LIMIT 1',
+      'SELECT id, name, has_options FROM menu_categories WHERE id = ? LIMIT 1',
       [id],
     );
     return rows[0] ?? null;
@@ -90,12 +98,16 @@ export const menuRepository = {
     }
   },
 
-  async findCategoryIdByName(name: string): Promise<number | null> {
+  async findCategoryByName(name: string): Promise<MenuCategoryRow | null> {
     const [rows] = await pool.query<MenuCategoryRow[]>(
-      'SELECT id, name FROM menu_categories WHERE name = ? LIMIT 1',
+      'SELECT id, name, has_options FROM menu_categories WHERE name = ? LIMIT 1',
       [name],
     );
-    return rows[0]?.id ?? null;
+    return rows[0] ?? null;
+  },
+
+  async findCategoryIdByName(name: string): Promise<number | null> {
+    return (await this.findCategoryByName(name))?.id ?? null;
   },
 
   async listItems(): Promise<MenuItemRow[]> {
@@ -149,15 +161,38 @@ export const menuRepository = {
     return rows;
   },
 
+  /** Ukuran gelas untuk sekumpulan menu sekaligus, urut sesuai pengaturan admin. */
+  async listSizes(menuItemIds: number[]): Promise<MenuSizeRow[]> {
+    if (menuItemIds.length === 0) return [];
+    const [rows] = await pool.query<MenuSizeRow[]>(
+      `SELECT id, menu_item_id, label, oz, extra_price, is_default
+       FROM menu_item_sizes WHERE menu_item_id IN (?) ORDER BY menu_item_id, sort_order, id`,
+      [menuItemIds],
+    );
+    return rows;
+  },
+
+  /** Tingkat manis untuk sekumpulan menu sekaligus, urut sesuai pengaturan admin. */
+  async listSugarLevels(menuItemIds: number[]): Promise<MenuSugarRow[]> {
+    if (menuItemIds.length === 0) return [];
+    const [rows] = await pool.query<MenuSugarRow[]>(
+      `SELECT id, menu_item_id, label, is_default
+       FROM menu_item_sugar_levels WHERE menu_item_id IN (?) ORDER BY menu_item_id, sort_order, id`,
+      [menuItemIds],
+    );
+    return rows;
+  },
+
   async create(input: CreateMenuInput, categoryId: number): Promise<number> {
     const conn = await pool.getConnection();
     try {
       await conn.beginTransaction();
       const [result] = await conn.query<ResultSetHeader>(
-        `INSERT INTO menu_items (category_id, name, description, price, stock, image, is_available)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO menu_items (category_id, menu_type, name, description, price, stock, image, is_available)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           categoryId,
+          input.menuType,
           input.name,
           input.description,
           input.price,
@@ -167,6 +202,8 @@ export const menuRepository = {
         ],
       );
       await insertAddons(conn, result.insertId, input.addons);
+      await insertSizes(conn, result.insertId, input.sizes);
+      await insertSugarLevels(conn, result.insertId, input.sugarLevels);
       await conn.commit();
       return result.insertId;
     } catch (err) {
@@ -204,6 +241,14 @@ export const menuRepository = {
         await conn.query('DELETE FROM menu_addons WHERE menu_item_id = ?', [id]);
         await insertAddons(conn, id, input.addons);
       }
+      if (input.sizes !== undefined) {
+        await conn.query('DELETE FROM menu_item_sizes WHERE menu_item_id = ?', [id]);
+        await insertSizes(conn, id, input.sizes);
+      }
+      if (input.sugarLevels !== undefined) {
+        await conn.query('DELETE FROM menu_item_sugar_levels WHERE menu_item_id = ?', [id]);
+        await insertSugarLevels(conn, id, input.sugarLevels);
+      }
       await conn.commit();
     } catch (err) {
       await conn.rollback();
@@ -228,4 +273,28 @@ async function insertAddons(
   await conn.query('INSERT INTO menu_addons (menu_item_id, label, extra_price) VALUES ?', [
     addons.map((a) => [menuItemId, a.label, a.extra_price]),
   ]);
+}
+
+async function insertSizes(
+  conn: Awaited<ReturnType<typeof pool.getConnection>>,
+  menuItemId: number,
+  sizes: Sizes,
+): Promise<void> {
+  if (sizes.length === 0) return;
+  await conn.query(
+    'INSERT INTO menu_item_sizes (menu_item_id, label, oz, extra_price, is_default, sort_order) VALUES ?',
+    [sizes.map((s, i) => [menuItemId, s.label, s.oz, s.extraPrice, s.isDefault ? 1 : 0, i + 1])],
+  );
+}
+
+async function insertSugarLevels(
+  conn: Awaited<ReturnType<typeof pool.getConnection>>,
+  menuItemId: number,
+  levels: SugarLevels,
+): Promise<void> {
+  if (levels.length === 0) return;
+  await conn.query(
+    'INSERT INTO menu_item_sugar_levels (menu_item_id, label, is_default, sort_order) VALUES ?',
+    [levels.map((l, i) => [menuItemId, l.label, l.isDefault ? 1 : 0, i + 1])],
+  );
 }

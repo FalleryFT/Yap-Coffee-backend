@@ -70,4 +70,12 @@ export const env = {
     // Hanya untuk uji coba. Di produksi set PAYMENT_SIMULATED=false.
     simulated: (process.env.PAYMENT_SIMULATED ?? 'true') === 'true',
   },
+  midtrans: {
+    // Kunci rahasia hanya dibaca dari .env (tidak ada nilai cadangan di kode).
+    serverKey: required('MIDTRANS_SERVER_KEY'),
+    clientKey: required('MIDTRANS_CLIENT_KEY'),
+    isProduction: (process.env.MIDTRANS_IS_PRODUCTION ?? 'false') === 'true',
+    // Flutter mendeteksi URL ini di WebView lalu menutupnya.
+    finishUrl: process.env.MIDTRANS_FINISH_URL ?? 'http://localhost:3000/payment/finish',
+  },
 } as const;

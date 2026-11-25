@@ -7,9 +7,11 @@ import { adminRoutes } from './routes/adminRoutes.js';
 import { authRoutes } from './routes/authRoutes.js';
 import { chatRoutes } from './routes/chatRoutes.js';
 import { meRoutes } from './routes/meRoutes.js';
+import { paymentRoutes } from './routes/paymentRoutes.js';
 
 export const app = express();
 
+// Urutan penting: cors dan pembaca JSON harus lebih dulu daripada semua rute.
 app.use(
   cors({
     origin: (origin, callback) => {
@@ -44,8 +46,14 @@ app.get('/health', (_req, res) => {
   res.json({ success: true, message: 'OK', data: { uptime: process.uptime() } });
 });
 
+// Halaman tujuan setelah pembayaran Midtrans; aplikasi mencegatnya di WebView.
+app.get('/payment/finish', (_req, res) => {
+  res.type('html').send('<p>Pembayaran diproses. Anda dapat menutup halaman ini.</p>');
+});
+
 app.use('/api/admin', adminRoutes);
 app.use('/api/auth', authRoutes);
+app.use('/api/payments', paymentRoutes); // webhook Midtrans, tanpa login
 app.use('/api', meRoutes);
 app.use('/api', chatRoutes);
 

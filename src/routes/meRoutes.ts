@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { customerPaymentController } from '../controllers/customer/customerPaymentController.js';
 import { customerAuthController } from '../controllers/customer/customerAuthController.js';
 import { customerHomeController } from '../controllers/customer/customerHomeController.js';
 import { uploadAvatar } from '../middlewares/uploadAvatar.js';
@@ -37,8 +38,15 @@ meRoutes.get('/schedules', requireCustomerAuth, customerMenuController.schedules
 // Pesanan milik pelanggan
 meRoutes.post('/orders', requireCustomerAuth, validateBody(createOrderSchema), customerOrderController.create);
 meRoutes.get('/orders', requireCustomerAuth, customerOrderController.list);
-meRoutes.get('/orders/:code', requireCustomerAuth, customerOrderController.show);
+// reconcile mencocokkan status pesanan yang masih menunggu dengan Midtrans sebelum detailnya dikirim.
+meRoutes.get(
+  '/orders/:code',
+  requireCustomerAuth,
+  customerPaymentController.reconcile,
+  customerOrderController.show,
+);
 meRoutes.post('/orders/:code/pay', requireCustomerAuth, customerOrderController.pay);
+meRoutes.post('/orders/:code/snap', requireCustomerAuth, customerPaymentController.createSnap);
 meRoutes.post('/orders/:code/cancel', requireCustomerAuth, customerOrderController.cancel);
 
 // Notifikasi dalam aplikasi: daftar, tandai dibaca, dan saklar nyala/mati

@@ -55,8 +55,28 @@ export interface MenuItemRow extends RowDataPacket {
   image: string | null;
   /** 1 = tampil di katalog pre-order pelanggan, 0 = disembunyikan (MySQL TINYINT). */
   is_available: number;
-  /** Jenis kategori menu ini (lihat MenuCategoryRow.has_options). */
+  /** 'minuman' atau 'makanan'; dipilih saat menu dibuat dan tidak bisa diubah. */
+  menu_type: MenuType;
+  /** 1 = minuman (turunan dari menu_type, dipakai aplikasi pelanggan sebagai `hasOptions`). */
   has_options: number;
+}
+
+export type MenuType = 'makanan' | 'minuman';
+
+export interface MenuSizeRow extends RowDataPacket {
+  id: number;
+  menu_item_id: number;
+  label: string;
+  oz: number | null;
+  extra_price: number;
+  is_default: number;
+}
+
+export interface MenuSugarRow extends RowDataPacket {
+  id: number;
+  menu_item_id: number;
+  label: string;
+  is_default: number;
 }
 
 export interface MenuAddonRow extends RowDataPacket {

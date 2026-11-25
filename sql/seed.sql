@@ -40,14 +40,14 @@ INSERT IGNORE INTO menu_categories (id, name, has_options) VALUES
   (3, 'Non-Coffee', 1),
   (4, 'Makanan Ringan', 0);
 
-INSERT IGNORE INTO menu_items (id, category_id, name, description, price, stock, image) VALUES
-  (1, 1, 'Yap Latte',               'Signature palm sugar dengan susu gurih',                      22000, 40, 'yap_latte.png'),
-  (2, 1, 'Es Kopi Susu Gula Aren',  'Double shot robusta-arabika dipadu susu segar dan gula aren', 22000, 35, 'es_kopi_susu.png'),
-  (3, 1, 'Cappuccino',              'Espresso bold dengan microfoam susu lembut',                  25000, 25, 'cappuccino.png'),
-  (4, 2, 'V60 Pour Over',           'Seduhan manual pour over dengan rasa bersih dan berkarakter', 30000, 20, 'v60_pour_over.png'),
-  (5, 2, 'V60 Gayo Beans',          'Arabika Aceh Gayo fermentasi anaerobik',                      30000, 15, 'v60_gayo.png'),
-  (6, 3, 'Matcha Latte Dingin',     'Premium Uji matcha',                                          28000, 18, 'matcha_latte.png'),
-  (7, 4, 'Butter Croissant',        'Hangat dan renyah',                                           25000, 12, 'butter_croissant.png');
+INSERT IGNORE INTO menu_items (id, category_id, menu_type, name, description, price, stock, image) VALUES
+  (1, 1, 'minuman', 'Yap Latte',               'Signature palm sugar dengan susu gurih',                      22000, 40, 'yap_latte.png'),
+  (2, 1, 'minuman', 'Es Kopi Susu Gula Aren',  'Double shot robusta-arabika dipadu susu segar dan gula aren', 22000, 35, 'es_kopi_susu.png'),
+  (3, 1, 'minuman', 'Cappuccino',              'Espresso bold dengan microfoam susu lembut',                  25000, 25, 'cappuccino.png'),
+  (4, 2, 'minuman', 'V60 Pour Over',           'Seduhan manual pour over dengan rasa bersih dan berkarakter', 30000, 20, 'v60_pour_over.png'),
+  (5, 2, 'minuman', 'V60 Gayo Beans',          'Arabika Aceh Gayo fermentasi anaerobik',                      30000, 15, 'v60_gayo.png'),
+  (6, 3, 'minuman', 'Matcha Latte Dingin',     'Premium Uji matcha',                                          28000, 18, 'matcha_latte.png'),
+  (7, 4, 'makanan', 'Butter Croissant',        'Hangat dan renyah',                                           25000, 12, 'butter_croissant.png');
 
 INSERT IGNORE INTO menu_addons (id, menu_item_id, label, extra_price) VALUES
   (1,  1, 'Oat Milk',   5000),
@@ -118,7 +118,7 @@ VALUES
 INSERT IGNORE INTO payments
   (id, order_id, channel, rrn, status, expires_at, paid_at)
 VALUES
-  (1, 1, 'QRIS', '260311063012', 'lunas',         '2026-11-03 06:40:00', '2026-11-03 06:32:00'),
-  (2, 2, 'QRIS', NULL,           'belum_dibayar', '2026-11-03 06:55:00', NULL),
-  (3, 3, 'QRIS', '260210071145', 'lunas',         '2026-10-28 07:20:00', '2026-10-28 07:12:00'),
-  (4, 4, 'QRIS', NULL,           'kedaluwarsa',   '2026-10-28 07:30:00', NULL);
+  (1, 1, 'minuman', 'QRIS', '260311063012', 'lunas',         '2026-11-03 06:40:00', '2026-11-03 06:32:00'),
+  (2, 2, 'minuman', 'QRIS', NULL,           'belum_dibayar', '2026-11-03 06:55:00', NULL),
+  (3, 3, 'minuman', 'QRIS', '260210071145', 'lunas',         '2026-10-28 07:20:00', '2026-10-28 07:12:00'),
+  (4, 4, 'minuman', 'QRIS', NULL,           'kedaluwarsa',   '2026-10-28 07:30:00', NULL);

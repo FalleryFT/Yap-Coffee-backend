@@ -47,9 +47,12 @@ export const customerHomeController = {
     ]);
     if (!customer) throw AppError.unauthorized('Sesi berakhir. Silakan masuk lagi.');
 
-    const [readyItems, addons] = await Promise.all([
+    const favoriteIds = favoriteRows.map((r) => r.id);
+    const [readyItems, addons, sizes, sugarLevels] = await Promise.all([
       readyRow ? customerOrderRepository.listItems([readyRow.id]) : Promise.resolve([]),
-      menuRepository.listAddons(favoriteRows.map((r) => r.id)),
+      menuRepository.listAddons(favoriteIds),
+      menuRepository.listSizes(favoriteIds),
+      menuRepository.listSugarLevels(favoriteIds),
     ]);
 
     ok(res, 'OK', {
@@ -58,7 +61,7 @@ export const customerHomeController = {
       notifications: { unreadCount: unread, enabled: customer.notifications_enabled === 1 },
       readyOrder: readyRow ? toCustomerOrderDto(readyRow, readyItems) : null,
       categories: categories.map((c) => c.name),
-      favorites: favoriteRows.map((row) => toCustomerMenuDto(row, addons)),
+      favorites: favoriteRows.map((row) => toCustomerMenuDto(row, addons, sizes, sugarLevels)),
     });
   },
-};
+}; 
