@@ -169,19 +169,19 @@ CREATE TABLE IF NOT EXISTS order_items (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS payments (
-  id                      INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  order_id                INT UNSIGNED NOT NULL UNIQUE,       -- satu pesanan, satu pembayaran
-  channel                 VARCHAR(32)  NOT NULL DEFAULT 'QRIS',
-  rrn                     VARCHAR(32),
-  -- Kolom tambahan untuk Midtrans Snap
+  id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  order_id    INT UNSIGNED NOT NULL UNIQUE,       -- satu pesanan, satu pembayaran
+  channel     VARCHAR(32)  NOT NULL DEFAULT 'QRIS',
+  rrn         VARCHAR(32),
+  -- Midtrans Snap. Database lama menambahkan kolom ini lewat 001_midtrans.sql.
   snap_token              VARCHAR(64)  NULL,
   redirect_url            VARCHAR(255) NULL,
   midtrans_transaction_id VARCHAR(64)  NULL,
   payment_type            VARCHAR(32)  NULL,
-  status                  ENUM('belum_dibayar','lunas','kedaluwarsa') NOT NULL DEFAULT 'belum_dibayar',
-  expires_at              DATETIME,
-  paid_at                 DATETIME,
-  created_at              DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  status      ENUM('belum_dibayar','lunas','kedaluwarsa') NOT NULL DEFAULT 'belum_dibayar',
+  expires_at  DATETIME,
+  paid_at     DATETIME,
+  created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_payments_order
     FOREIGN KEY (order_id) REFERENCES orders (id)
     ON DELETE CASCADE ON UPDATE CASCADE
