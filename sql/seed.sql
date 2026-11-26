@@ -118,7 +118,7 @@ VALUES
 INSERT IGNORE INTO payments
   (id, order_id, channel, rrn, status, expires_at, paid_at)
 VALUES
-  (1, 1, 'minuman', 'QRIS', '260311063012', 'lunas',         '2026-11-03 06:40:00', '2026-11-03 06:32:00'),
-  (2, 2, 'minuman', 'QRIS', NULL,           'belum_dibayar', '2026-11-03 06:55:00', NULL),
-  (3, 3, 'minuman', 'QRIS', '260210071145', 'lunas',         '2026-10-28 07:20:00', '2026-10-28 07:12:00'),
-  (4, 4, 'minuman', 'QRIS', NULL,           'kedaluwarsa',   '2026-10-28 07:30:00', NULL);
+  (1, 1, 'QRIS', '260311063012', 'lunas',         '2026-11-03 06:40:00', '2026-11-03 06:32:00'),
+  (2, 2, 'QRIS', NULL,           'belum_dibayar', '2026-11-03 06:55:00', NULL),
+  (3, 3, 'QRIS', '260210071145', 'lunas',         '2026-10-28 07:20:00', '2026-10-28 07:12:00'),
+  (4, 4, 'QRIS', NULL,           'kedaluwarsa',   '2026-10-28 07:30:00', NULL);
